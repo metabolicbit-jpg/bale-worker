@@ -1,3 +1,7 @@
 name = "aged-river-6500bale-game-server"
 main = "index.js"
 compatibility_date = "2026-08-06"
+
+[[kv_namespaces]]
+binding = "GAME_KV"
+id = "dda2ea7adc0741fca7d385adbf173990"
