@@ -222,4 +222,4 @@ export default {
 
     return new Response('🎮 Bale Game Server v2 is running!');
   }
-};​
+};
