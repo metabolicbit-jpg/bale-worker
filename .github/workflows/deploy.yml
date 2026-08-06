@@ -11,6 +11,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Inject bot token
+        run: |
+          echo "" >> wrangler.toml
+          echo "[vars]" >> wrangler.toml
+          echo "BALE_BOT_TOKEN = \"$BALE_BOT_TOKEN\"" >> wrangler.toml
+        env:
+          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
