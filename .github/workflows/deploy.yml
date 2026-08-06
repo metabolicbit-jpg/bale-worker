@@ -1,4 +1,4 @@
-Entername: Deploy
+name: Deploy
 
 on:
   push:
