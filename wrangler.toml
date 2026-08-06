@@ -1,0 +1,3 @@
+name = "aged-river-6500bale-game-server"
+main = "index.js"
+compatibility_date = "2026-08-06"
