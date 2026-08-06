@@ -16,7 +16,3 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          secrets: |
-            BALE_BOT_TOKEN
-        env:
-          BALE_BOT_TOKEN: ${{ secrets.BALE_BOT_TOKEN }}
