@@ -5,7 +5,7 @@ export default {
     const KV = env.GAME_KV;
 
     const CHANNEL = '@bale_game_center';
-    const GROUP = '@bale_game_group';
+    const GROUP = '@game_center_bale';
     const GAME_URL = 'https://metabolicbit-jpg.github.io/bale-game/flappy.html';
 
     const SHOP = [
