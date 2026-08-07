@@ -57,7 +57,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','🥈','🥉','۴.','۵.'];
+      const medals = ['🥇','','🥉','۴.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) {
         t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n';
@@ -77,7 +77,7 @@ export default {
     async function sendTasks(chatId) {
       await bale('sendMessage', {
         chat_id: chatId,
-        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
+        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
         reply_markup: { inline_keyboard: [
           [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }],
           [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }],
@@ -128,9 +128,9 @@ export default {
       }
     }
 
-    // ---------- اسم‌فامیل: نبرد واژه‌ها (v2 - اصلاح‌شده) ----------
+    // ---------- اسم‌فامیل: نبرد واژه‌ها (v3 - بانک واژه زنده) ----------
     const ESM_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
-    const ESM_LETTERS = ['ا','ب','پ','ت','ج','چ','د','ر','س','ش','ک','گ','م','ن','و','ه','ی','ز','ف','ق'];
+    const ESM_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
     const ESM_SHOP = [
       { id: 'mirror', name: '👁️ آینه اضافه', price: 50 },
       { id: 'fog', name: '🌫️ مه اضافه', price: 40 }
@@ -141,14 +141,29 @@ export default {
     async function esmSet(r, s) { await KV.put('esm:' + r, JSON.stringify(s), { expirationTtl: 86400 }); }
     function esmNewRoom() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let o = ''; for (let i = 0; i < 4; i++) o += c[Math.floor(Math.random() * c.length)]; return o; }
 
+    const ESM_BANK_URL = 'https://metabolicbit-jpg.github.io/bale-game/words.json';
+    let ESM_BANK = null;
+    async function esmLoadBank() {
+        if (ESM_BANK) return ESM_BANK;
+        try { const cached = await KV.get('esm_bank', 'json'); if (cached && cached.list) { ESM_BANK = cached.list; return ESM_BANK; } } catch (e) {}
+        try {
+            const r = await fetch(ESM_BANK_URL);
+            const list = await r.json();
+            ESM_BANK = list;
+            KV.put('esm_bank', JSON.stringify({ list: list }));
+            return list;
+        } catch (e) { return {}; }
+    }
+
     async function esmJudge(st) {
       const p0 = st.players[0], p1 = st.players[1];
       let s0 = 0, s1 = 0;
       const detail = [];
+      const bank = await esmLoadBank();
       ESM_COLS.forEach(function(col, i) {
         const a = normFa(p0.answers[col] || '');
         const b = normFa(p1.answers[col] || '');
-        function val(w) { return w.length >= 2 && w.charAt(0) === st.letter; }
+        function val(w) { return w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).includes(w); }
         let pa = val(a) ? 10 : 0;
         let pb = val(b) ? 10 : 0;
         if (pa && pb && a === b) { pa = 5; pb = 5; }
@@ -366,7 +381,7 @@ export default {
               u.claimed[key] = 1;
               u.coins += 100;
               await saveUser(uid, u);
-              msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins);
+              msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins);
             }
           }
           else if (data.startsWith('buy_')) {
@@ -391,6 +406,6 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v4 is running!');
+    return new Response('🎮 Bale Game Server v5 is running!');
   }
 };
