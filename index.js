@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v2: پیش‌بینی، شمارش معکوس، میزبان، جدول ماتریسی) ==========
+// ========== میزگرد بله (v3: ریکاوری میز، دعوت، پین، واژه‌سالار) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -15,6 +15,7 @@ const MZ_COUNTDOWN = 20;
 function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
 function mzShort(s) { return (s || 'بازیکن').slice(0, 8); }
 function mzRootHit(col, w) { const rs = MZ_ROOTS[col] || []; for (const r of rs) { if (r && w.indexOf(r) !== -1) return true; } return false; }
+function mzWhen() { try { return new Intl.DateTimeFormat('fa-IR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date()); } catch (e) { return ''; } }
 async function mzBale(env, method, data) {
   const res = await fetch('https://tapi.bale.ai/bot' + (env.BALE_BOT_TOKEN || '') + '/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   return res.json();
@@ -45,6 +46,13 @@ async function mzOnlineCheck(words) {
   uniq.forEach(function(w) { const t = wt[w] || { exists: false, cats: [] }; out[w] = { exists: t.exists, cats: t.cats, wp: !!wp[w] }; });
   return out;
 }
+async function mzClose(env, KV, key, chatId) {
+  try { await KV.delete(key); } catch (e) {}
+  let active = (await KV.get('mz_active', 'json')) || [];
+  active = active.filter(function(c) { return c !== String(chatId); });
+  await KV.put('mz_active', JSON.stringify(active));
+  await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🗑️ میز بسته شد. برای میز جدید: /نبرد' });
+}
 
 async function mzJudge(KV, st) {
   const bank = await mzLoadBank(KV);
@@ -60,7 +68,6 @@ async function mzJudge(KV, st) {
   const uniqNeed = need.filter(function(w, i) { return need.indexOf(w) === i; });
   for (const w of uniqNeed) { const c = await KV.get('wb2:' + w, 'json'); if (c) online[w] = c; else toFetch.push(w); }
   if (toFetch.length) { const got = await mzOnlineCheck(toFetch); for (const w in got) { online[w] = got[w]; KV.put('wb2:' + w, JSON.stringify(got[w])); } }
-
   function scoreWord(col, w) {
     if (w.length < 2 || w.charAt(0) !== st.letter) return 0;
     if ((bank[col] || []).indexOf(w) !== -1) return 10;
@@ -78,7 +85,6 @@ async function mzJudge(KV, st) {
     }
     return 10;
   }
-
   st.players.forEach(function(p) { p.cells = [0,0,0,0,0,0]; });
   MZ_COLS.forEach(function(col, i) {
     const scored = st.players.map(function(p) { return scoreWord(col, mzNorm(p.answers[col] || '')); });
@@ -112,7 +118,6 @@ async function mzPostResult(env, KV, st) {
   }
   const gTotal = parseInt(await KV.get('mzg:' + st.chat) || '0');
   await KV.put('mzg:' + st.chat, String(gTotal + total));
-
   let t = '🏁 نتیجهٔ میزگرد!\n\n';
   t += 'ستون | ' + st.players.map(function(p) { return mzShort(p.name); }).join(' | ') + '\n';
   MZ_COLS.forEach(function(col, i) {
@@ -120,9 +125,9 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','','🥉','.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
-
+  if (winId) { const wp = st.players.find(function(p) { return p.id === winId; }); if (wp) t += '\n👑 واژه‌سالار این میز: ' + wp.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
   let betText = '';
   for (const b of st.bets) {
@@ -136,7 +141,6 @@ async function mzPostResult(env, KV, st) {
   if (betText) t += '\n' + betText;
   t += '\n' + MZ_TAUNTS[Math.floor(Math.random() * MZ_TAUNTS.length)];
   await mzBale(env, 'sendMessage', { chat_id: st.chat, text: t });
-
   let active = (await KV.get('mz_active', 'json')) || [];
   active = active.filter(function(c) { return c !== String(st.chat); });
   await KV.put('mz_active', JSON.stringify(active));
@@ -156,7 +160,7 @@ async function mzStartPlay(env, KV, st, key) {
     if (st.players[i + 1]) row.push({ text: '🔮 ' + st.players[i + 1].name, callback_data: 'mz_bet_' + (i + 1) });
     betRows.push(row);
   }
-  await mzBale(env, 'sendMessage', { chat_id: st.chat, text: '🔔️ نبرد شروع شد!\nحرف: ' + st.letter + ' | ستون طلایی: ' + MZ_COLS[st.golden] + ' ⭐\n جواب‌ها رو خصوصی به بات بفرستید.\n🔮 تماشاگرها: پیش‌بینی کنید کی قهرمانه!', reply_markup: { inline_keyboard: betRows } });
+  await mzBale(env, 'sendMessage', { chat_id: st.chat, text: '🔔⚔️ نبرد شروع شد!\nحرف: ' + st.letter + ' | ستون طلایی: ' + MZ_COLS[st.golden] + ' ⭐\n جواب‌ها رو خصوصی به بات بفرستید.\n🔮 تماشاگرها: پیش‌بینی کنید کی قهرمانه!', reply_markup: { inline_keyboard: betRows } });
   for (const p of st.players) {
     await mzBale(env, 'sendMessage', { chat_id: p.id, text: '🏟️ میزگرد شروع!\nحرف: ' + st.letter + '\n۱/۶ ' + MZ_COLS[0] + '؟' });
   }
@@ -175,17 +179,32 @@ async function mzHandle(update, env, ctx) {
       const key = 'mz:' + chat.id;
       const existing = await KV.get(key, 'json');
       if (existing && existing.phase !== 'result') {
-        const m = '⚔️ یه میز بالفعل بازه! یا بشین، یا صبر کن تموم بشه.';
-        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: m });
-        await mzBale(env, 'sendMessage', { chat_id: uid, text: m });
-        return true;
+        const stale = (existing.phase === 'join' && Date.now() - existing.createdAt > 300000) || (existing.phase !== 'join' && existing.endsAt && Date.now() > existing.endsAt + 120000);
+        if (!stale) {
+          const m = '⚔️ یه میز بالفعل بازه! یا بشین، یا صبر کن تموم بشه.';
+          await mzBale(env, 'sendMessage', { chat_id: chat.id, text: m, reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '🗑️ بستن میز (میزبان)', callback_data: 'mz_close' }] ] } });
+          await mzBale(env, 'sendMessage', { chat_id: uid, text: m });
+          return true;
+        }
       }
       const st = { chat: chat.id, host: uid, phase: 'join', createdAt: Date.now(), players: [], bets: [], letter: null, golden: 0, endsAt: 0, result: null };
       await KV.put(key, JSON.stringify(st));
       let active = (await KV.get('mz_active', 'json')) || [];
       if (active.indexOf(String(chat.id)) === -1) active.push(String(chat.id));
       await KV.put('mz_active', JSON.stringify(active));
-      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🏟️ میزگرد واژه‌ها باز شد! (میزبان: ' + (msg.from.first_name || '؟') + ')\n۹۰ ثانیه، ۶ ستون، ستون طلایی ×۲.\nجواب‌ها خصوصی؛ نتیجه عمومی! تماشاگرها پیش‌بینی کنند 🔮', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }], [{ text: '⚔️ شروع نبرد (میزبان)', callback_data: 'mz_start' }] ] } });
+      const sent = await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '📣🏟️ میزگرد واژه‌ها — ' + mzWhen() + '\n👑 میزبان: ' + (msg.from.first_name || '؟') + '\n۹۰ ثانیه، ۶ ستون، ستون طلایی ×۲.\nجواب‌ها خصوصی؛ نتیجه عمومی! تماشاگرها پیش‌بینی کنند 🔮', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '⚔️ شروع نبرد (میزبان)', callback_data: 'mz_start' }], [{ text: '📨 دعوت دوستان به گروه', callback_data: 'mz_invite' }] ] } });
+      try { if (sent && sent.result && sent.result.message_id) await mzBale(env, 'pinChatMessage', { chat_id: chat.id, message_id: sent.result.message_id, disable_notification: true }); } catch (e) {}
+      return true;
+    }
+
+    if (isGroup && (text === '/لغو' || text === '/لغو میز')) {
+      const uid = String(msg.from.id);
+      const key = 'mz:' + chat.id;
+      const st = await KV.get(key, 'json');
+      if (st && st.phase !== 'result') {
+        if (uid === st.host) await mzClose(env, KV, key, chat.id);
+        else await mzBale(env, 'sendMessage', { chat_id: uid, text: 'فقط میزبان می‌تونه میز رو بببنده!' });
+      }
       return true;
     }
 
@@ -236,6 +255,20 @@ async function mzHandle(update, env, ctx) {
           await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🪑 ' + name + ' پای میز نشست! (' + st.players.length + ' نفر)' });
           await KV.put(key, JSON.stringify(st));
         }
+        return true;
+      }
+
+      if (data === 'mz_close') {
+        if (uid !== st.host) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'فقط میزبان می‌تونه میز رو بببنده!' }); return true; }
+        await mzClose(env, KV, key, chatId);
+        return true;
+      }
+
+      if (data === 'mz_invite') {
+        let link = '';
+        try { const r = await mzBale(env, 'exportChatInviteLink', { chat_id: chatId }); if (r.ok) link = r.result; } catch (e) {}
+        if (link) await mzBale(env, 'sendMessage', { chat_id: uid, text: '📨 لینک دعوت گروه:\n' + link + '\nبرای دوستانت بفرست تا بیان پای میز!' });
+        else await mzBale(env, 'sendMessage', { chat_id: uid, text: 'برای دعوت دوستان: از تنظیمات گروه، لینک دعوت رو کپی کن و بفرست.\n(اگه بخوای بات خودش لینک بسازه، باید مدیر گروه باشه)' });
         return true;
       }
 
@@ -305,51 +338,27 @@ export default {
     ];
 
     async function bale(method, data) {
-      const res = await fetch(API + '/' + method, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
+      const res = await fetch(API + '/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
       return res.json();
     }
-
-    function fa(n) {
-      const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹'];
-      return String(n).replace(/\d/g, function(d) { return p[d]; });
-    }
-
+    function fa(n) { const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']; return String(n).replace(/\d/g, function(d) { return p[d]; }); }
     function json(obj) {
-      return new Response(JSON.stringify(obj), {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type'
-        }
-      });
+      return new Response(JSON.stringify(obj), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } });
     }
-
     async function getUser(id) {
       const raw = await KV.get('u:' + id, 'json');
       if (raw) return raw;
       return { coins: 0, best: 0, games: 0, items: [], claimed: {}, daily: {}, esm: { games: 0, wins: 0, total: 0, inv: { mirror: 0, fog: 0 } } };
     }
-
-    async function saveUser(id, u) {
-      await KV.put('u:' + id, JSON.stringify(u));
-    }
-
+    async function saveUser(id, u) { await KV.put('u:' + id, JSON.stringify(u)); }
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','🥈','🥉','۴.','۵.'];
+      const medals = ['🥇','','🥉','۴.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
-      lb.slice(0, 5).forEach(function(e, i) {
-        t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n';
-      });
+      lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n'; });
       return t;
     }
-
     async function updateLB(id, name, best) {
       const lb = (await KV.get('lb', 'json')) || [];
       const e = lb.find(function(x) { return x.id === id; });
@@ -358,37 +367,19 @@ export default {
       lb.sort(function(a, b) { return b.best - a.best; });
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
-
     async function sendTasks(chatId) {
-      await bale('sendMessage', {
-        chat_id: chatId,
-        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
-        reply_markup: { inline_keyboard: [
-          [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }],
-          [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }],
-          [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }]
-        ] }
-      });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
-
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
-      SHOP.forEach(function(i) {
-        const owned = u.items.includes(i.id) ? ' ✅' : '';
-        t += i.name + ' — ' + fa(i.price) + ' سکه' + owned + '\n';
-      });
+      SHOP.forEach(function(i) { const owned = u.items.includes(i.id) ? ' ✅' : ''; t += i.name + ' — ' + fa(i.price) + ' سکه' + owned + '\n'; });
       t += '\n🪙 سکه تو: ' + fa(u.coins);
       const rows = [];
-      SHOP.forEach(function(i) {
-        if (!u.items.includes(i.id)) {
-          rows.push([{ text: 'خرید ' + i.name + ' (' + fa(i.price) + ')', callback_data: 'buy_' + i.id }]);
-        }
-      });
+      SHOP.forEach(function(i) { if (!u.items.includes(i.id)) rows.push([{ text: 'خرید ' + i.name + ' (' + fa(i.price) + ')', callback_data: 'buy_' + i.id }]); });
       if (rows.length === 0) rows.push([{ text: 'همه رو خریدی! 🎉', callback_data: 'coins' }]);
       await bale('sendMessage', { chat_id: chatId, text: t, reply_markup: { inline_keyboard: rows } });
     }
 
-    // ---------- API بازی‌ها ----------
     if (url.pathname === '/api/submit') {
       if (request.method === 'OPTIONS') return json({ ok: true });
       if (request.method === 'POST') {
@@ -407,39 +398,25 @@ export default {
           await saveUser(uid, u);
           await updateLB(uid, body.name || '🎮 بازیکن', u.best);
           return json({ ok: true, coins: coins, balance: u.coins });
-        } catch (e) {
-          return json({ ok: false });
-        }
+        } catch (e) { return json({ ok: false }); }
       }
     }
 
-    // ---------- اسم‌فامیل آنلاین (چهار لایه اعتبارسنجی) ----------
     const ESM_COLS = MZ_COLS;
     const ESM_LETTERS = MZ_LETTERS;
-    const ESM_SHOP = [
-      { id: 'mirror', name: '👁️ آینه اضافه', price: 50 },
-      { id: 'fog', name: '🌫️ مه اضافه', price: 40 }
-    ];
+    const ESM_SHOP = [ { id: 'mirror', name: '👁️ آینه اضافه', price: 50 }, { id: 'fog', name: '🌫️ مه اضافه', price: 40 } ];
     const ESM_CAT_KEYS = MZ_CAT_KEYS;
     const ESM_ONLINE_COLS = MZ_ONLINE_COLS;
-
     function normFa(s) { return mzNorm(s); }
     async function esmGet(r) { return await KV.get('esm:' + r, 'json'); }
     async function esmSet(r, s) { await KV.put('esm:' + r, JSON.stringify(s), { expirationTtl: 86400 }); }
     function esmNewRoom() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let o = ''; for (let i = 0; i < 4; i++) o += c[Math.floor(Math.random() * c.length)]; return o; }
-
     const ESM_BANK_URL = 'https://metabolicbit-jpg.github.io/bale-game/words.json';
     let ESM_BANK = null;
     async function esmLoadBank() {
-        if (ESM_BANK) return ESM_BANK;
-        try { const cached = await KV.get('esm_bank', 'json'); if (cached && cached.list) { ESM_BANK = cached.list; return ESM_BANK; } } catch (e) {}
-        try {
-            const r = await fetch(ESM_BANK_URL);
-            const list = await r.json();
-            ESM_BANK = list;
-            KV.put('esm_bank', JSON.stringify({ list: list }));
-            return list;
-        } catch (e) { return {}; }
+      if (ESM_BANK) return ESM_BANK;
+      try { const cached = await KV.get('esm_bank', 'json'); if (cached && cached.list) { ESM_BANK = cached.list; return ESM_BANK; } } catch (e) {}
+      try { const r = await fetch(ESM_BANK_URL); const list = await r.json(); ESM_BANK = list; KV.put('esm_bank', JSON.stringify({ list: list })); return list; } catch (e) { return {}; }
     }
 
     async function esmJudge(st) {
@@ -447,7 +424,6 @@ export default {
       let s0 = 0, s1 = 0;
       const detail = [];
       const bank = await esmLoadBank();
-
       const needOnline = [];
       ESM_COLS.forEach(function(col) {
         if (ESM_ONLINE_COLS.indexOf(col) === -1) return;
@@ -456,19 +432,10 @@ export default {
           if (w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).indexOf(w) === -1 && !mzRootHit(col, w)) needOnline.push(w);
         });
       });
-
-      const online = {};
-      const toFetch = [];
+      const online = {}; const toFetch = [];
       const uniqNeed = needOnline.filter(function(w, i) { return needOnline.indexOf(w) === i; });
-      for (const w of uniqNeed) {
-        const c = await KV.get('wb2:' + w, 'json');
-        if (c) online[w] = c; else toFetch.push(w);
-      }
-      if (toFetch.length) {
-        const got = await mzOnlineCheck(toFetch);
-        for (const w in got) { online[w] = got[w]; KV.put('wb2:' + w, JSON.stringify(got[w])); }
-      }
-
+      for (const w of uniqNeed) { const c = await KV.get('wb2:' + w, 'json'); if (c) online[w] = c; else toFetch.push(w); }
+      if (toFetch.length) { const got = await mzOnlineCheck(toFetch); for (const w in got) { online[w] = got[w]; KV.put('wb2:' + w, JSON.stringify(got[w])); } }
       function wordScore(col, w) {
         if (w.length < 2 || w.charAt(0) !== st.letter) return 0;
         if ((bank[col] || []).indexOf(w) !== -1) return 10;
@@ -486,7 +453,6 @@ export default {
         }
         return 10;
       }
-
       ESM_COLS.forEach(function(col, i) {
         const a = normFa(p0.answers[col] || '');
         const b = normFa(p1.answers[col] || '');
@@ -536,41 +502,25 @@ export default {
           const opp = st.players.find(function(p) { return p.id !== pid; }) || null;
           let peek = null;
           if (me && opp && st.peek && st.peek.by === me.id && Date.now() < st.peek.until) peek = opp.answers;
-          return json({ ok: true, st: {
-            phase: st.phase, letter: st.letter, golden: st.golden, endsAt: st.endsAt, code: st.code,
-            players: st.players.map(function(p) { return { id: p.id, name: p.name, submitted: p.submitted, score: p.score, coinsWon: p.coinsWon || 0, timeBonus: p.timeBonus || 0 }; }),
-            result: st.result, peek: peek,
-            myPowers: me ? me.powers : null
-          } });
+          return json({ ok: true, st: { phase: st.phase, letter: st.letter, golden: st.golden, endsAt: st.endsAt, code: st.code, players: st.players.map(function(p) { return { id: p.id, name: p.name, submitted: p.submitted, score: p.score, coinsWon: p.coinsWon || 0, timeBonus: p.timeBonus || 0 }; }), result: st.result, peek: peek, myPowers: me ? me.powers : null } });
         }
-
         const body = await request.json();
         const room = (body.room || '').toUpperCase();
-
         if (act === 'create' || act === 'join') {
           let st;
-          if (act === 'create') {
-            const code = esmNewRoom();
-            st = { code: code, phase: 'lobby', players: [], letter: null, golden: 0, endsAt: 0, result: null };
-            await esmSet(code, st);
-          } else {
-            st = await esmGet(room);
-            if (!st) return json({ ok: false, error: 'اتاق پیدا نشد' });
-            if (st.players.length >= 2) return json({ ok: false, error: 'اتاق پره!' });
-          }
+          if (act === 'create') { const code = esmNewRoom(); st = { code: code, phase: 'lobby', players: [], letter: null, golden: 0, endsAt: 0, result: null }; await esmSet(code, st); }
+          else { st = await esmGet(room); if (!st) return json({ ok: false, error: 'اتاق پیدا نشد' }); if (st.players.length >= 2) return json({ ok: false, error: 'اتاق پره!' }); }
           const inv = body.user ? ((await getUser(body.user)).esm || {}).inv || { mirror: 0, fog: 0 } : { mirror: 0, fog: 0 };
           st.players.push({ id: body.pid, name: body.name || 'بازیکن', user: body.user || '', answers: {}, powers: { mirror: 1 + inv.mirror, fog: 1 + inv.fog }, submitted: false, score: 0, timeBonus: 0 });
           if (st.players.length === 2) st.phase = 'ready';
           await esmSet(st.code, st);
           return json({ ok: true, room: st.code });
         }
-
         if (act === 'profile') {
           if (!body.user) return json({ ok: false, error: 'guest' });
           const u = await getUser(body.user);
           return json({ ok: true, coins: u.coins, esm: u.esm || { games: 0, wins: 0, total: 0, inv: { mirror: 0, fog: 0 } } });
         }
-
         if (act === 'shop') {
           const item = ESM_SHOP.find(function(i) { return i.id === body.item; });
           if (!item || !body.user) return json({ ok: false, error: 'از بات وارد شو' });
@@ -582,10 +532,8 @@ export default {
           await saveUser(body.user, u);
           return json({ ok: true, coins: u.coins, inv: u.esm.inv });
         }
-
         const st = await esmGet(room);
         if (!st) return json({ ok: false, error: 'اتاق پیدا نشد' });
-
         if (act === 'start') {
           if (st.players.length !== 2) return json({ ok: false, error: 'منتظر حریف!' });
           st.letter = ESM_LETTERS[Math.floor(Math.random() * ESM_LETTERS.length)];
@@ -595,7 +543,6 @@ export default {
           await esmSet(room, st);
           return json({ ok: true });
         }
-
         if (act === 'answer') {
           const p = st.players.find(function(x) { return x.id === body.pid; });
           if (!p || p.submitted) return json({ ok: false });
@@ -606,7 +553,6 @@ export default {
           await esmSet(room, st);
           return json({ ok: true, timeBonus: p.timeBonus });
         }
-
         if (act === 'power') {
           const me = st.players.find(function(x) { return x.id === body.pid; });
           const opp = st.players.find(function(x) { return x.id !== body.pid; });
@@ -621,7 +567,6 @@ export default {
           }
           return json({ ok: false });
         }
-
         if (act === 'again') {
           st.phase = 'ready';
           st.result = null;
@@ -629,54 +574,30 @@ export default {
           await esmSet(room, st);
           return json({ ok: true });
         }
-
         return json({ ok: false });
-      } catch (e) {
-        return json({ ok: false, error: e.message });
-      }
+      } catch (e) { return json({ ok: false, error: e.message }); }
     }
 
-    // ---------- وب‌هوک بله ----------
     if (request.method === 'POST' && url.pathname === '/webhook') {
       try {
         const update = await request.json();
-
         if (await mzHandle(update, env, ctx)) return new Response('ok');
-
         if (update.message) {
           const text = update.message.text || '';
           const chat = update.message.chat;
           const uid = String(chat.id);
           const u = await getUser(uid);
           const today = new Date().toISOString().slice(0, 10);
-
           if (text === '/start') {
             let extra = '';
-            if (u.daily.login !== today) {
-              u.daily.login = today;
-              u.coins += 30;
-              await saveUser(uid, u);
-              extra = '\n\n🎁 جایزه ورود امروز: +۳۰ سکه';
-            }
-            await bale('sendMessage', {
-              chat_id: chat.id,
-              text: '🎮 به مرکز بازی خوش اومدی!' + extra + '\n\n🪙 سکه تو: ' + fa(u.coins),
-              reply_markup: { inline_keyboard: [
-                [{ text: '🐤 پرنده‌پرش', url: GAME_URL + '?user=' + uid }, { text: '👤 سایه‌پرش', url: SHADOW_URL + '?user=' + uid }],
-                [{ text: '🥚 آخرین تخم', url: EGG_URL + '?user=' + uid }, { text: '📝 نبرد واژه‌ها', url: ESM_URL + '?user=' + uid }],
-                [{ text: '📋 کارها', callback_data: 'tasks' }, { text: '🛒 فروشگاه', callback_data: 'shop' }],
-                [{ text: '🏆 رتبه‌بندی', callback_data: 'rank' }, { text: '🪙 سکه‌هام', callback_data: 'coins' }]
-              ] }
-            });
+            if (u.daily.login !== today) { u.daily.login = today; u.coins += 30; await saveUser(uid, u); extra = '\n\n🎁 جایزه ورود امروز: +۳۰ سکه'; }
+            await bale('sendMessage', { chat_id: chat.id, text: '🎮 به مرکز بازی خوش اومدی!' + extra + '\n\n🪙 سکه تو: ' + fa(u.coins), reply_markup: { inline_keyboard: [ [{ text: '🐤 پرنده‌پرش', url: GAME_URL + '?user=' + uid }, { text: '👤 سایه‌پرش', url: SHADOW_URL + '?user=' + uid }], [{ text: '🥚 آخرین تخم', url: EGG_URL + '?user=' + uid }, { text: '📝 نبرد واژه‌ها', url: ESM_URL + '?user=' + uid }], [{ text: '📋 کارها', callback_data: 'tasks' }, { text: '🛒 فروشگاه', callback_data: 'shop' }], [{ text: '🏆 رتبه‌بندی', callback_data: 'rank' }, { text: '🪙 سکه‌هام', callback_data: 'coins' }] ] } });
           }
-          else if (text === '/coins') {
-            await bale('sendMessage', { chat_id: chat.id, text: '🪙 سکه: ' + fa(u.coins) + '\n🎮 بازی‌ها: ' + fa(u.games) + '\n⭐ بهترین رکورد: ' + fa(u.best) });
-          }
+          else if (text === '/coins') { await bale('sendMessage', { chat_id: chat.id, text: '🪙 سکه: ' + fa(u.coins) + '\n🎮 بازی‌ها: ' + fa(u.games) + '\n⭐ بهترین رکورد: ' + fa(u.best) }); }
           else if (text === '/tasks') { await sendTasks(chat.id); }
           else if (text === '/shop') { await sendShop(chat.id, u); }
           else if (text === '/rank') { await bale('sendMessage', { chat_id: chat.id, text: await rankText() }); }
         }
-
         if (update.callback_query) {
           const cb = update.callback_query;
           const uid = String(cb.from.id);
@@ -684,19 +605,10 @@ export default {
           const data = cb.data || '';
           const u = await getUser(uid);
           let msg = null;
-
           if (data === 'coins') msg = '🪙 سکه تو: ' + fa(u.coins);
           else if (data === 'rank') msg = await rankText();
-          else if (data === 'tasks') {
-            await bale('answerCallbackQuery', { callback_query_id: cb.id });
-            await sendTasks(chatId);
-            return new Response('ok');
-          }
-          else if (data === 'shop') {
-            await bale('answerCallbackQuery', { callback_query_id: cb.id });
-            await sendShop(chatId, u);
-            return new Response('ok');
-          }
+          else if (data === 'tasks') { await bale('answerCallbackQuery', { callback_query_id: cb.id }); await sendTasks(chatId); return new Response('ok'); }
+          else if (data === 'shop') { await bale('answerCallbackQuery', { callback_query_id: cb.id }); await sendShop(chatId, u); return new Response('ok'); }
           else if (data === 'task_channel' || data === 'task_group') {
             const isChannel = data === 'task_channel';
             const target = isChannel ? CHANNEL : GROUP;
@@ -705,36 +617,23 @@ export default {
             const isMember = st.ok && ['member', 'administrator', 'creator'].includes(st.result.status);
             if (!isMember) msg = '❌ هنوز عضو نشدی! اول عضو ' + target + ' بشو، بعد دوباره بزن.';
             else if (u.claimed[key]) msg = 'این جایزه رو قبلاً گرفتی!';
-            else {
-              u.claimed[key] = 1;
-              u.coins += 100;
-              await saveUser(uid, u);
-              msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins);
-            }
+            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
           }
           else if (data.startsWith('buy_')) {
             const item = SHOP.find(function(i) { return i.id === data.slice(4); });
             if (!item) msg = 'پیدا نشد!';
             else if (u.items.includes(item.id)) msg = 'قبلاً خریدیش!';
             else if (u.coins < item.price) msg = '❌ سکه کافی نیست! ' + fa(item.price - u.coins) + ' سکه دیگه لازمه. برو بازی کن! 🎮';
-            else {
-              u.coins -= item.price;
-              u.items.push(item.id);
-              await saveUser(uid, u);
-              msg = '🛍️ خرید موفق: ' + item.name + '\n🪙 موجودی: ' + fa(u.coins);
-            }
+            else { u.coins -= item.price; u.items.push(item.id); await saveUser(uid, u); msg = '🛍️ خرید موفق: ' + item.name + '\n🪙 موجودی: ' + fa(u.coins); }
           }
-
           await bale('answerCallbackQuery', { callback_query_id: cb.id });
           if (msg) await bale('sendMessage', { chat_id: chatId, text: msg });
         }
-      } catch (e) {
-        console.log('webhook error:', e.message);
-      }
+      } catch (e) { console.log('webhook error:', e.message); }
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v9 is running!');
+    return new Response('🎮 Bale Game Server v10 is running!');
   },
 
   async scheduled(event, env) {
@@ -744,16 +643,14 @@ export default {
     for (const chatId of active) {
       const st = await KV.get('mz:' + chatId, 'json');
       if (!st) continue;
-      if (st.phase === 'countdown' && Date.now() > st.startsAt) {
-        await mzStartPlay(env, KV, st, 'mz:' + chatId);
-        remaining.push(chatId);
-      } else if (st.phase === 'play' && Date.now() > st.endsAt) {
+      if (st.phase === 'countdown' && Date.now() > st.startsAt) { await mzStartPlay(env, KV, st, 'mz:' + chatId); remaining.push(chatId); }
+      else if (st.phase === 'play' && Date.now() > st.endsAt) {
         st.players.forEach(function(p) { if (!p.submitted) { p.submitted = true; p.timeBonus = 0; } });
         await mzJudge(KV, st);
         await mzPostResult(env, KV, st);
-      } else if (st.phase === 'join' && Date.now() - st.createdAt > 300000) {
-        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '😴 میز جمع شد (کسی شروع نکرد).' });
-      } else remaining.push(chatId);
+      }
+      else if (st.phase === 'join' && Date.now() - st.createdAt > 300000) { await mzBale(env, 'sendMessage', { chat_id: chatId, text: '😴 میز جمع شد (کسی شروع نکرد).' }); }
+      else remaining.push(chatId);
     }
     await KV.put('mz_active', JSON.stringify(remaining));
   }
