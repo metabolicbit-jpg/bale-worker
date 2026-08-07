@@ -47,7 +47,7 @@ export default {
     async function getUser(id) {
       const raw = await KV.get('u:' + id, 'json');
       if (raw) return raw;
-      return { coins: 0, best: 0, games: 0, items: [], claimed: {}, daily: {} };
+      return { coins: 0, best: 0, games: 0, items: [], claimed: {}, daily: {}, esm: { games: 0, wins: 0, total: 0, inv: { mirror: 0, fog: 0 } } };
     }
 
     async function saveUser(id, u) {
@@ -77,7 +77,7 @@ export default {
     async function sendTasks(chatId) {
       await bale('sendMessage', {
         chat_id: chatId,
-        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
+        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
         reply_markup: { inline_keyboard: [
           [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }],
           [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }],
@@ -128,21 +128,18 @@ export default {
       }
     }
 
-    // ---------- اسم‌فامیل: نبرد واژه‌ها (MVP) ----------
-    const ESM_COLS = ['اسم', 'فامیل', 'حیوان', 'میوه', 'شهر', 'غذا'];
+    // ---------- اسم‌فامیل: نبرد واژه‌ها (v2 - اصلاح‌شده) ----------
+    const ESM_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
     const ESM_LETTERS = ['ا','ب','پ','ت','ج','چ','د','ر','س','ش','ک','گ','م','ن','و','ه','ی','ز','ف','ق'];
+    const ESM_SHOP = [
+      { id: 'mirror', name: '👁️ آینه اضافه', price: 50 },
+      { id: 'fog', name: '🌫️ مه اضافه', price: 40 }
+    ];
 
-    function normFa(s) {
-      return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' ');
-    }
-    async function esmGet(room) { return await KV.get('esm:' + room, 'json'); }
-    async function esmSet(room, st) { await KV.put('esm:' + room, JSON.stringify(st), { expirationTtl: 86400 }); }
-    function esmNewRoom() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      let c = '';
-      for (let i = 0; i < 4; i++) c += chars[Math.floor(Math.random() * chars.length)];
-      return c;
-    }
+    function normFa(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
+    async function esmGet(r) { return await KV.get('esm:' + r, 'json'); }
+    async function esmSet(r, s) { await KV.put('esm:' + r, JSON.stringify(s), { expirationTtl: 86400 }); }
+    function esmNewRoom() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let o = ''; for (let i = 0; i < 4; i++) o += c[Math.floor(Math.random() * c.length)]; return o; }
 
     async function esmJudge(st) {
       const p0 = st.players[0], p1 = st.players[1];
@@ -160,6 +157,8 @@ export default {
         s0 += pa; s1 += pb;
         detail.push({ col: col, a: p0.answers[col] || '-', b: p1.answers[col] || '-', pa: pa, pb: pb, golden: st.golden === i });
       });
+      s0 += (p0.timeBonus || 0);
+      s1 += (p1.timeBonus || 0);
       p0.score = s0; p1.score = s1;
       st.phase = 'result';
       st.result = { detail: detail, winner: s0 === s1 ? -1 : (s0 > s1 ? 0 : 1) };
@@ -169,10 +168,15 @@ export default {
           const u = await getUser(p.user);
           const win = st.result.winner === idx;
           const draw = st.result.winner === -1;
-          const coins = win ? 30 : (draw ? 15 : 5);
+          const coins = (win ? 20 : (draw ? 10 : 0)) + Math.floor(p.score / 5);
           u.coins += coins;
+          p.coinsWon = coins;
+          if (!u.esm) u.esm = { games: 0, wins: 0, total: 0, inv: { mirror: 0, fog: 0 } };
+          u.esm.games += 1;
+          u.esm.total += p.score;
+          if (win) u.esm.wins += 1;
           await saveUser(p.user, u);
-          await bale('sendMessage', { chat_id: p.user, text: '📝 نبرد واژه‌ها تموم شد!\n🏅 امتیاز تو: ' + fa(p.score) + '\n' + (win ? '🏆 بردی! +۳۰ سکه' : (draw ? '🤝 مساوی! +۱۵ سکه' : '💪 باختی! +۵ سکه')) });
+          await bale('sendMessage', { chat_id: p.user, text: '📝 نبرد واژه‌ها تموم شد!\n🏅 امتیاز: ' + fa(p.score) + ' (⚡ پاداش سرعت: ' + fa(p.timeBonus || 0) + ')\n🪙 سکه: +' + fa(coins) + (win ? '\n🏆 بردی!' : (draw ? '\n🤝 مساوی!' : '\n💪 باختی!')) });
         }
       }
     }
@@ -193,7 +197,7 @@ export default {
           if (me && opp && st.peek && st.peek.by === me.id && Date.now() < st.peek.until) peek = opp.answers;
           return json({ ok: true, st: {
             phase: st.phase, letter: st.letter, golden: st.golden, endsAt: st.endsAt, code: st.code,
-            players: st.players.map(function(p) { return { id: p.id, name: p.name, submitted: p.submitted, score: p.score }; }),
+            players: st.players.map(function(p) { return { id: p.id, name: p.name, submitted: p.submitted, score: p.score, coinsWon: p.coinsWon || 0, timeBonus: p.timeBonus || 0 }; }),
             result: st.result, peek: peek,
             myPowers: me ? me.powers : null
           } });
@@ -202,23 +206,44 @@ export default {
         const body = await request.json();
         const room = (body.room || '').toUpperCase();
 
-        if (act === 'create') {
-          const code = esmNewRoom();
-          const st = { code: code, phase: 'lobby', players: [{ id: body.pid, name: body.name || 'بازیکن', user: body.user || '', answers: {}, powers: { mirror: 1, fog: 1 }, submitted: false, score: 0 }], letter: null, golden: 0, endsAt: 0, result: null };
-          await esmSet(code, st);
-          return json({ ok: true, room: code });
+        if (act === 'create' || act === 'join') {
+          let st;
+          if (act === 'create') {
+            const code = esmNewRoom();
+            st = { code: code, phase: 'lobby', players: [], letter: null, golden: 0, endsAt: 0, result: null };
+            await esmSet(code, st);
+          } else {
+            st = await esmGet(room);
+            if (!st) return json({ ok: false, error: 'اتاق پیدا نشد' });
+            if (st.players.length >= 2) return json({ ok: false, error: 'اتاق پره!' });
+          }
+          const inv = body.user ? ((await getUser(body.user)).esm || {}).inv || { mirror: 0, fog: 0 } : { mirror: 0, fog: 0 };
+          st.players.push({ id: body.pid, name: body.name || 'بازیکن', user: body.user || '', answers: {}, powers: { mirror: 1 + inv.mirror, fog: 1 + inv.fog }, submitted: false, score: 0, timeBonus: 0 });
+          if (st.players.length === 2) st.phase = 'ready';
+          await esmSet(st.code, st);
+          return json({ ok: true, room: st.code });
+        }
+
+        if (act === 'profile') {
+          if (!body.user) return json({ ok: false, error: 'guest' });
+          const u = await getUser(body.user);
+          return json({ ok: true, coins: u.coins, esm: u.esm || { games: 0, wins: 0, total: 0, inv: { mirror: 0, fog: 0 } } });
+        }
+
+        if (act === 'shop') {
+          const item = ESM_SHOP.find(function(i) { return i.id === body.item; });
+          if (!item || !body.user) return json({ ok: false, error: 'از بات وارد شو' });
+          const u = await getUser(body.user);
+          if (u.coins < item.price) return json({ ok: false, error: 'سکه کافی نیست! برو بازی کن 🎮' });
+          if (!u.esm) u.esm = { games: 0, wins: 0, total: 0, inv: { mirror: 0, fog: 0 } };
+          u.coins -= item.price;
+          u.esm.inv[item.id] += 1;
+          await saveUser(body.user, u);
+          return json({ ok: true, coins: u.coins, inv: u.esm.inv });
         }
 
         const st = await esmGet(room);
         if (!st) return json({ ok: false, error: 'اتاق پیدا نشد' });
-
-        if (act === 'join') {
-          if (st.players.length >= 2) return json({ ok: false, error: 'اتاق پره!' });
-          st.players.push({ id: body.pid, name: body.name || 'بازیکن', user: body.user || '', answers: {}, powers: { mirror: 1, fog: 1 }, submitted: false, score: 0 });
-          st.phase = 'ready';
-          await esmSet(room, st);
-          return json({ ok: true });
-        }
 
         if (act === 'start') {
           if (st.players.length !== 2) return json({ ok: false, error: 'منتظر حریف!' });
@@ -232,12 +257,13 @@ export default {
 
         if (act === 'answer') {
           const p = st.players.find(function(x) { return x.id === body.pid; });
-          if (!p) return json({ ok: false });
+          if (!p || p.submitted) return json({ ok: false });
           p.answers = body.answers || {};
           p.submitted = true;
-          if (st.players.every(function(x) { return x.submitted; }) || Date.now() > st.endsAt) await esmJudge(st);
+          p.timeBonus = Math.max(0, Math.ceil((st.endsAt - Date.now()) / 1000)) * 2;
+          if (st.players.every(function(x) { return x.submitted; })) await esmJudge(st);
           await esmSet(room, st);
-          return json({ ok: true });
+          return json({ ok: true, timeBonus: p.timeBonus });
         }
 
         if (act === 'power') {
@@ -258,7 +284,7 @@ export default {
         if (act === 'again') {
           st.phase = 'ready';
           st.result = null;
-          st.players.forEach(function(p) { p.answers = {}; p.submitted = false; p.score = 0; p.powers = { mirror: 1, fog: 1 }; });
+          st.players.forEach(function(p) { p.answers = {}; p.submitted = false; p.score = 0; p.timeBonus = 0; p.coinsWon = 0; p.powers = { mirror: 1, fog: 1 }; });
           await esmSet(room, st);
           return json({ ok: true });
         }
@@ -365,6 +391,6 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v3 is running!');
+    return new Response('🎮 Bale Game Server v4 is running!');
   }
 };
