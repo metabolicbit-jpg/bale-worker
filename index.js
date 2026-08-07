@@ -1,3 +1,252 @@
+// ========== میزگرد بله (ماژول سطح بالا) ==========
+const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
+const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
+const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
+const MZ_CAT_KEYS = {
+  'حیوان': ['جانور','حیوان','پرنده','ماهی','حشره','خزنده','پستاندار','بندپا','عنکبوت','دوزیست','نرم‌تن','پرندگان','جانوران'],
+  'میوه': ['میوه','گیاه','خوراکی','درخت','کشاورزی'],
+  'شهر': ['شهر','روستا','استان','منطقه','ایران','کشور','مناطق'],
+  'غذا': ['غذا','خورش','آشپزی','شیرینی','نوشیدنی','دسر','خوراکی','آش']
+};
+const MZ_ROOTS = { 'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'] };
+const MZ_TAUNTS = ['به‌به! چه میزی داغ بود! 😎','این دور ترکوند! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
+
+function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
+function mzRootHit(col, w) { const rs = MZ_ROOTS[col] || []; for (const r of rs) { if (r && w.indexOf(r) !== -1) return true; } return false; }
+async function mzBale(env, method, data) {
+  const res = await fetch('https://tapi.bale.ai/bot' + (env.BALE_BOT_TOKEN || '') + '/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  return res.json();
+}
+async function mzGetUser(KV, id) { const raw = await KV.get('u:' + id, 'json'); if (raw) return raw; return { coins: 0, best: 0, games: 0, items: [], claimed: {}, daily: {} }; }
+async function mzLoadBank(KV) {
+  try { const cached = await KV.get('esm_bank', 'json'); if (cached && cached.list) return cached.list; } catch (e) {}
+  try { const r = await fetch('https://metabolicbit-jpg.github.io/bale-game/words.json'); return await r.json(); } catch (e) { return {}; }
+}
+async function mzOnlineCheck(words) {
+  const out = {};
+  const uniq = words.filter(function(w, i) { return words.indexOf(w) === i; }).slice(0, 15);
+  if (!uniq.length) return out;
+  const titles = uniq.map(encodeURIComponent).join('|');
+  const wt = {}; const wp = {};
+  try {
+    const r = await fetch('https://fa.wiktionary.org/w/api.php?action=query&prop=categories&titles=' + titles + '&cllimit=50&format=json&origin=*');
+    const j = await r.json();
+    const pages = (j.query && j.query.pages) || {};
+    for (const id in pages) { const pg = pages[id]; if (pg.missing !== undefined) wt[pg.title] = { exists: false, cats: [] }; else wt[pg.title] = { exists: true, cats: (pg.categories || []).map(function(c) { return c.title; }) }; }
+  } catch (e) {}
+  try {
+    const r2 = await fetch('https://fa.wikipedia.org/w/api.php?action=query&titles=' + titles + '&format=json&origin=*');
+    const j2 = await r.json();
+    const pages2 = (j2.query && j2.query.pages) || {};
+    for (const id in pages2) { const pg = pages2[id]; wp[pg.title] = pg.missing === undefined; }
+  } catch (e) {}
+  uniq.forEach(function(w) { const t = wt[w] || { exists: false, cats: [] }; out[w] = { exists: t.exists, cats: t.cats, wp: !!wp[w] }; });
+  return out;
+}
+
+async function mzJudge(KV, st) {
+  const bank = await mzLoadBank(KV);
+  const need = [];
+  st.players.forEach(function(p) {
+    MZ_COLS.forEach(function(col) {
+      if (MZ_ONLINE_COLS.indexOf(col) === -1) return;
+      const w = mzNorm(p.answers[col] || '');
+      if (w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).indexOf(w) === -1 && !mzRootHit(col, w)) need.push(w);
+    });
+  });
+  const online = {}; const toFetch = [];
+  const uniqNeed = need.filter(function(w, i) { return need.indexOf(w) === i; });
+  for (const w of uniqNeed) { const c = await KV.get('wb2:' + w, 'json'); if (c) online[w] = c; else toFetch.push(w); }
+  if (toFetch.length) { const got = await mzOnlineCheck(toFetch); for (const w in got) { online[w] = got[w]; KV.put('wb2:' + w, JSON.stringify(got[w])); } }
+
+  function scoreWord(col, w) {
+    if (w.length < 2 || w.charAt(0) !== st.letter) return 0;
+    if ((bank[col] || []).indexOf(w) !== -1) return 10;
+    if (mzRootHit(col, w)) return 10;
+    if (MZ_ONLINE_COLS.indexOf(col) !== -1) {
+      const o = online[w];
+      if (!o) return 0;
+      if (o.wp) return 10;
+      if (o.exists) {
+        const keys = MZ_CAT_KEYS[col];
+        const catOk = (o.cats || []).some(function(c) { return keys.some(function(k) { return c.indexOf(k) !== -1; }); });
+        return catOk ? 10 : 5;
+      }
+      return 0;
+    }
+    return 10;
+  }
+
+  MZ_COLS.forEach(function(col, i) {
+    const scored = st.players.map(function(p) { return scoreWord(col, mzNorm(p.answers[col] || '')); });
+    st.players.forEach(function(p, pi) {
+      let s = scored[pi];
+      const w = mzNorm(p.answers[col] || '');
+      const dup = st.players.some(function(o, oi) { return oi !== pi && s > 0 && mzNorm(o.answers[col] || '') === w; });
+      if (dup) s = Math.ceil(s / 2);
+      if (i === st.golden) s *= 2;
+      p.score += s;
+    });
+  });
+  st.players.forEach(function(p) { p.score += (p.timeBonus || 0); });
+  st.phase = 'result';
+  const sorted = st.players.slice().sort(function(a, b) { return b.score - a.score; });
+  st.result = { winnerId: sorted[0].score > sorted[1].score ? sorted[0].id : null, sorted: sorted.map(function(p) { return { id: p.id, name: p.name, score: p.score }; }) };
+}
+
+async function mzPostResult(env, KV, st) {
+  const winId = st.result.winnerId;
+  let total = 0;
+  for (const p of st.players) {
+    total += p.score;
+    const u = await mzGetUser(KV, p.id);
+    const win = p.id === winId;
+    const coins = (win ? 20 : 0) + Math.floor(p.score / 5);
+    u.coins += coins;
+    p.coinsWon = coins;
+    await KV.put('u:' + p.id, JSON.stringify(u));
+  }
+  const gTotal = parseInt(await KV.get('mzg:' + st.chat) || '0');
+  await KV.put('mzg:' + st.chat, String(gTotal + total));
+
+  let betText = '';
+  const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
+  for (const b of st.bets) {
+    const u = await mzGetUser(KV, b.user);
+    if (winId === null) { u.coins += b.amount; betText += '↩️ شرط برگشت.\n'; }
+    else if (b.on === winIdx) { const gain = b.amount + Math.floor(b.amount * 0.8); u.coins += gain; betText += '💰 شرط‌بند برنده شد: +' + gain + '\n'; }
+    else betText += '😅 شرط سوخت.\n';
+    await KV.put('u:' + b.user, JSON.stringify(u));
+  }
+
+  let t = '🏁 نتیجهٔ میزگرد!\n\n';
+  const medals = ['🥇','🥈','🥉'];
+  st.result.sorted.forEach(function(r, i) {
+    t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n';
+  });
+  if (betText) t += '\n' + betText;
+  t += '\n' + MZ_TAUNTS[Math.floor(Math.random() * MZ_TAUNTS.length)];
+  await mzBale(env, 'sendMessage', { chat_id: st.chat, text: t });
+
+  let active = (await KV.get('mz_active', 'json')) || [];
+  active = active.filter(function(c) { return c !== String(st.chat); });
+  await KV.put('mz_active', JSON.stringify(active));
+  await KV.put('mz:' + st.chat, JSON.stringify(st));
+}
+
+async function mzHandle(update, env) {
+  const KV = env.GAME_KV;
+  if (update.message) {
+    const msg = update.message;
+    const chat = msg.chat || {};
+    const text = (msg.text || '').trim();
+    const isGroup = chat.type === 'group' || chat.type === 'supergroup';
+
+    if (isGroup && (text === '/نبرد' || text === '/nabard')) {
+      const key = 'mz:' + chat.id;
+      const existing = await KV.get(key, 'json');
+      if (existing && existing.phase !== 'result') { await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⚔️ یه میز بالفعل بازه! یا بشین، یا صبر کن تموم بشه.' }); return true; }
+      const st = { chat: chat.id, phase: 'join', createdAt: Date.now(), players: [], bets: [], letter: null, golden: 0, endsAt: 0, result: null };
+      await KV.put(key, JSON.stringify(st));
+      let active = (await KV.get('mz_active', 'json')) || [];
+      if (active.indexOf(String(chat.id)) === -1) active.push(String(chat.id));
+      await KV.put('mz_active', JSON.stringify(active));
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🏟️ میزگرد واژه‌ها باز شد!\n۹۰ ثانیه، ۶ ستون، ستون طلایی ×۲.\nجواب‌ها خصوصی؛ نتیجه عمومی! تماشاگرها شرط ببندند 💰', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }], [{ text: '⚔️ شروع نبرد', callback_data: 'mz_start' }] ] } });
+      return true;
+    }
+
+    if (chat.type === 'private' && msg.text && msg.text.charAt(0) !== '/') {
+      const uid = String(msg.from.id);
+      const g = await KV.get('mzu:' + uid);
+      if (g) {
+        const st = await KV.get('mz:' + g, 'json');
+        if (st && st.phase === 'play') {
+          const p = st.players.find(function(x) { return x.id === uid; });
+          if (p && !p.submitted) {
+            p.answers[MZ_COLS[p.idx]] = msg.text.trim();
+            p.idx++;
+            if (p.idx >= MZ_COLS.length) {
+              p.submitted = true;
+              p.timeBonus = Math.max(0, Math.ceil((st.endsAt - Date.now()) / 1000)) * 2;
+              await mzBale(env, 'sendMessage', { chat_id: uid, text: '✅ ثبت شد! ⚡ پاداش سرعت: +' + p.timeBonus + '\nمنتظر بقیه...' });
+            } else {
+              await mzBale(env, 'sendMessage', { chat_id: uid, text: (p.idx + 1) + '/۶ ' + MZ_COLS[p.idx] + '؟' });
+            }
+            if (st.players.every(function(x) { return x.submitted; })) { await mzJudge(KV, st); await mzPostResult(env, KV, st); }
+            await KV.put('mz:' + g, JSON.stringify(st));
+            return true;
+          }
+        }
+      }
+    }
+  }
+
+  if (update.callback_query) {
+    const cb = update.callback_query;
+    const data = cb.data || '';
+    if (data.indexOf('mz_') === 0) {
+      const chatId = cb.message.chat.id;
+      const key = 'mz:' + chatId;
+      const st = await KV.get(key, 'json');
+      await mzBale(env, 'answerCallbackQuery', { callback_query_id: cb.id });
+      if (!st) return true;
+      const uid = String(cb.from.id);
+      const name = cb.from.first_name || 'بازیکن';
+
+      if (data === 'mz_join') {
+        if (st.phase !== 'join') { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'میز از دست رفت! دور بعد زودتر بیا.' }); return true; }
+        if (st.players.length >= 8) return true;
+        if (!st.players.find(function(p) { return p.id === uid; })) {
+          st.players.push({ id: uid, name: name, answers: {}, idx: 0, submitted: false, score: 0, timeBonus: 0 });
+          await KV.put('mzu:' + uid, String(chatId));
+          await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🪑 ' + name + ' پای میز نشست! (' + st.players.length + ' نفر)' });
+          await KV.put(key, JSON.stringify(st));
+        }
+        return true;
+      }
+
+      if (data === 'mz_start') {
+        if (st.phase !== 'join' || st.players.length < 2) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'حداقل ۲ نفر باید پای میز باشن!' }); return true; }
+        st.phase = 'play';
+        st.letter = MZ_LETTERS[Math.floor(Math.random() * MZ_LETTERS.length)];
+        st.golden = Math.floor(Math.random() * MZ_COLS.length);
+        st.endsAt = Date.now() + 90000;
+        const betRows = [];
+        for (let i = 0; i < st.players.length; i += 2) {
+          const row = [{ text: '🪙 شرط روی ' + st.players[i].name, callback_data: 'mz_bet_' + i }];
+          if (st.players[i + 1]) row.push({ text: '🪙 شرط روی ' + st.players[i + 1].name, callback_data: 'mz_bet_' + (i + 1) });
+          betRows.push(row);
+        }
+        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '⚔️ نبرد شروع شد!\nحرف: ' + st.letter + ' | ستون طلایی: ' + MZ_COLS[st.golden] + ' ⭐\n جواب‌ها رو خصوصی به بات بفرستید.\n💰 تماشاگرها: شرط ببندید!', reply_markup: { inline_keyboard: betRows } });
+        for (const p of st.players) {
+          p.idx = 0; p.answers = {}; p.submitted = false; p.score = 0;
+          await mzBale(env, 'sendMessage', { chat_id: p.id, text: '🏟️ میزگرد شروع!\nحرف: ' + st.letter + '\n۱/۶ ' + MZ_COLS[0] + '؟' });
+        }
+        await KV.put(key, JSON.stringify(st));
+        return true;
+      }
+
+      if (data.indexOf('mz_bet_') === 0) {
+        if (st.phase !== 'play') return true;
+        const idx = Number(data.slice(7));
+        const target = st.players[idx];
+        if (!target) return true;
+        if (st.bets.find(function(b) { return b.user === uid; })) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً شرط بستی!' }); return true; }
+        const u = await mzGetUser(KV, uid);
+        if (u.coins < 20) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'سکه کافی نیست (۲۰ لازمه)' }); return true; }
+        u.coins -= 20;
+        await KV.put('u:' + uid, JSON.stringify(u));
+        st.bets.push({ user: uid, on: idx, amount: 20 });
+        await KV.put(key, JSON.stringify(st));
+        await mzBale(env, 'sendMessage', { chat_id: uid, text: '💰 شرط ۲۰ سکه روی ' + target.name + ' بسته شد!' });
+        return true;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -77,7 +326,7 @@ export default {
     async function sendTasks(chatId) {
       await bale('sendMessage', {
         chat_id: chatId,
-        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
+        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
         reply_markup: { inline_keyboard: [
           [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }],
           [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }],
@@ -128,26 +377,18 @@ export default {
       }
     }
 
-    // ---------- اسم‌فامیل: نبرد واژه‌ها (v5 - چهار لایه اعتبارسنجی) ----------
+    // ---------- اسم‌فامیل: نبرد واژه‌ها (چهار لایه اعتبارسنجی) ----------
     const ESM_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
     const ESM_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
     const ESM_SHOP = [
       { id: 'mirror', name: '👁️ آینه اضافه', price: 50 },
       { id: 'fog', name: '🌫️ مه اضافه', price: 40 }
     ];
-    const ESM_CAT_KEYS = {
-      'حیوان': ['جانور','حیوان','پرنده','ماهی','حشره','خزنده','پستاندار','بندپا','عنکبوت','دوزیست','نرم‌تن','پرندگان','جانوران','پستانداران'],
-      'میوه': ['میوه','گیاه','خوراکی','درخت','کشاورزی'],
-      'شهر': ['شهر','روستا','استان','منطقه','ایران','کشور','مناطق'],
-      'غذا': ['غذا','خورش','آشپزی','شیرینی','نوشیدنی','دسر','خوراکی','آش']
-    };
-    const ESM_ROOTS = {
-      'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'],
-      'حیوان': [], 'میوه': [], 'شهر': []
-    };
-    const ESM_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
+    const ESM_CAT_KEYS = MZ_CAT_KEYS;
+    const ESM_ROOTS = MZ_ROOTS;
+    const ESM_ONLINE_COLS = MZ_ONLINE_COLS;
 
-    function normFa(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
+    function normFa(s) { return mzNorm(s); }
     async function esmGet(r) { return await KV.get('esm:' + r, 'json'); }
     async function esmSet(r, s) { await KV.put('esm:' + r, JSON.stringify(s), { expirationTtl: 86400 }); }
     function esmNewRoom() { const c = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let o = ''; for (let i = 0; i < 4; i++) o += c[Math.floor(Math.random() * c.length)]; return o; }
@@ -166,38 +407,7 @@ export default {
         } catch (e) { return {}; }
     }
 
-    async function esmOnlineCheck(words) {
-      const out = {};
-      const uniq = words.filter(function(w, i) { return words.indexOf(w) === i; }).slice(0, 15);
-      if (!uniq.length) return out;
-      const titles = uniq.map(encodeURIComponent).join('|');
-      const wt = {};
-      const wp = {};
-      try {
-        const r = await fetch('https://fa.wiktionary.org/w/api.php?action=query&prop=categories&titles=' + titles + '&cllimit=50&format=json&origin=*');
-        const j = await r.json();
-        const pages = (j.query && j.query.pages) || {};
-        for (const id in pages) {
-          const pg = pages[id];
-          if (pg.missing !== undefined) wt[pg.title] = { exists: false, cats: [] };
-          else wt[pg.title] = { exists: true, cats: (pg.categories || []).map(function(c) { return c.title; }) };
-        }
-      } catch (e) {}
-      try {
-        const r2 = await fetch('https://fa.wikipedia.org/w/api.php?action=query&titles=' + titles + '&format=json&origin=*');
-        const j2 = await r2.json();
-        const pages2 = (j2.query && j2.query.pages) || {};
-        for (const id in pages2) {
-          const pg = pages2[id];
-          wp[pg.title] = pg.missing === undefined;
-        }
-      } catch (e) {}
-      uniq.forEach(function(w) {
-        const t = wt[w] || { exists: false, cats: [] };
-        out[w] = { exists: t.exists, cats: t.cats, wp: !!wp[w] };
-      });
-      return out;
-    }
+    async function esmOnlineCheck(words) { return await mzOnlineCheck(words); }
 
     async function esmJudge(st) {
       const p0 = st.players[0], p1 = st.players[1];
@@ -210,12 +420,7 @@ export default {
         if (ESM_ONLINE_COLS.indexOf(col) === -1) return;
         [p0.answers[col], p1.answers[col]].forEach(function(w) {
           w = normFa(w);
-          if (w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).indexOf(w) === -1) {
-            const roots = ESM_ROOTS[col] || [];
-            let rootHit = false;
-            roots.forEach(function(r) { if (r && w.indexOf(r) !== -1) rootHit = true; });
-            if (!rootHit) needOnline.push(w);
-          }
+          if (w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).indexOf(w) === -1 && !mzRootHit(col, w)) needOnline.push(w);
         });
       });
 
@@ -234,8 +439,7 @@ export default {
       function wordScore(col, w) {
         if (w.length < 2 || w.charAt(0) !== st.letter) return 0;
         if ((bank[col] || []).indexOf(w) !== -1) return 10;
-        const roots = ESM_ROOTS[col] || [];
-        for (const r of roots) { if (r && w.indexOf(r) !== -1) return 10; }
+        if (mzRootHit(col, w)) return 10;
         if (ESM_ONLINE_COLS.indexOf(col) !== -1) {
           const o = online[w];
           if (!o) return 0;
@@ -404,6 +608,9 @@ export default {
       try {
         const update = await request.json();
 
+        // میزگرد: فرمان گروه، جواب خصوصی، دکمه‌ها
+        if (await mzHandle(update, env)) return new Response('ok');
+
         if (update.message) {
           const text = update.message.text || '';
           const chat = update.message.chat;
@@ -495,6 +702,24 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v7 is running!');
+    return new Response('🎮 Bale Game Server v8 is running!');
+  },
+
+  async scheduled(event, env) {
+    const KV = env.GAME_KV;
+    const active = (await KV.get('mz_active', 'json')) || [];
+    const remaining = [];
+    for (const chatId of active) {
+      const st = await KV.get('mz:' + chatId, 'json');
+      if (!st) continue;
+      if (st.phase === 'play' && Date.now() > st.endsAt) {
+        st.players.forEach(function(p) { if (!p.submitted) { p.submitted = true; p.timeBonus = 0; } });
+        await mzJudge(KV, st);
+        await mzPostResult(env, KV, st);
+      } else if (st.phase === 'join' && Date.now() - st.createdAt > 300000) {
+        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '😴 میز جمع شد (کسی شروع نکرد).' });
+      } else remaining.push(chatId);
+    }
+    await KV.put('mz_active', JSON.stringify(remaining));
   }
 };
