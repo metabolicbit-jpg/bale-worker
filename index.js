@@ -77,7 +77,7 @@ export default {
     async function sendTasks(chatId) {
       await bale('sendMessage', {
         chat_id: chatId,
-        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
+        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
         reply_markup: { inline_keyboard: [
           [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }],
           [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }],
@@ -128,7 +128,7 @@ export default {
       }
     }
 
-    // ---------- اسم‌فامیل: نبرد واژه‌ها (v4 - اعتبارسنجی آنلاین) ----------
+    // ---------- اسم‌فامیل: نبرد واژه‌ها (v5 - چهار لایه اعتبارسنجی) ----------
     const ESM_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
     const ESM_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
     const ESM_SHOP = [
@@ -136,10 +136,14 @@ export default {
       { id: 'fog', name: '🌫️ مه اضافه', price: 40 }
     ];
     const ESM_CAT_KEYS = {
-      'حیوان': ['جانور','حیوان','پرنده','ماهی','حشره','خزنده','پستاندار'],
-      'میوه': ['میوه','گیاه','خوراکی','درخت'],
-      'شهر': ['شهر','روستا','استان','منطقه','ایران','کشور'],
-      'غذا': ['غذا','خورش','آشپزی','شیرینی','نوشیدنی','دسر']
+      'حیوان': ['جانور','حیوان','پرنده','ماهی','حشره','خزنده','پستاندار','بندپا','عنکبوت','دوزیست','نرم‌تن','پرندگان','جانوران','پستانداران'],
+      'میوه': ['میوه','گیاه','خوراکی','درخت','کشاورزی'],
+      'شهر': ['شهر','روستا','استان','منطقه','ایران','کشور','مناطق'],
+      'غذا': ['غذا','خورش','آشپزی','شیرینی','نوشیدنی','دسر','خوراکی','آش']
+    };
+    const ESM_ROOTS = {
+      'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'],
+      'حیوان': [], 'میوه': [], 'شهر': []
     };
     const ESM_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
 
@@ -166,19 +170,32 @@ export default {
       const out = {};
       const uniq = words.filter(function(w, i) { return words.indexOf(w) === i; }).slice(0, 15);
       if (!uniq.length) return out;
+      const titles = uniq.map(encodeURIComponent).join('|');
+      const wt = {};
+      const wp = {};
       try {
-        const titles = uniq.map(encodeURIComponent).join('|');
         const r = await fetch('https://fa.wiktionary.org/w/api.php?action=query&prop=categories&titles=' + titles + '&cllimit=50&format=json&origin=*');
         const j = await r.json();
         const pages = (j.query && j.query.pages) || {};
         for (const id in pages) {
           const pg = pages[id];
-          const title = pg.title || '';
-          if (pg.missing !== undefined) { out[title] = { exists: false, cats: [] }; continue; }
-          out[title] = { exists: true, cats: (pg.categories || []).map(function(c) { return c.title; }) };
+          if (pg.missing !== undefined) wt[pg.title] = { exists: false, cats: [] };
+          else wt[pg.title] = { exists: true, cats: (pg.categories || []).map(function(c) { return c.title; }) };
         }
-        uniq.forEach(function(w) { if (!out[w]) out[w] = { exists: false, cats: [] }; });
       } catch (e) {}
+      try {
+        const r2 = await fetch('https://fa.wikipedia.org/w/api.php?action=query&titles=' + titles + '&format=json&origin=*');
+        const j2 = await r2.json();
+        const pages2 = (j2.query && j2.query.pages) || {};
+        for (const id in pages2) {
+          const pg = pages2[id];
+          wp[pg.title] = pg.missing === undefined;
+        }
+      } catch (e) {}
+      uniq.forEach(function(w) {
+        const t = wt[w] || { exists: false, cats: [] };
+        out[w] = { exists: t.exists, cats: t.cats, wp: !!wp[w] };
+      });
       return out;
     }
 
@@ -193,7 +210,12 @@ export default {
         if (ESM_ONLINE_COLS.indexOf(col) === -1) return;
         [p0.answers[col], p1.answers[col]].forEach(function(w) {
           w = normFa(w);
-          if (w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).indexOf(w) === -1) needOnline.push(w);
+          if (w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).indexOf(w) === -1) {
+            const roots = ESM_ROOTS[col] || [];
+            let rootHit = false;
+            roots.forEach(function(r) { if (r && w.indexOf(r) !== -1) rootHit = true; });
+            if (!rootHit) needOnline.push(w);
+          }
         });
       });
 
@@ -201,23 +223,29 @@ export default {
       const toFetch = [];
       const uniqNeed = needOnline.filter(function(w, i) { return needOnline.indexOf(w) === i; });
       for (const w of uniqNeed) {
-        const c = await KV.get('wb:' + w, 'json');
+        const c = await KV.get('wb2:' + w, 'json');
         if (c) online[w] = c; else toFetch.push(w);
       }
       if (toFetch.length) {
         const got = await esmOnlineCheck(toFetch);
-        for (const w in got) { online[w] = got[w]; KV.put('wb:' + w, JSON.stringify(got[w])); }
+        for (const w in got) { online[w] = got[w]; KV.put('wb2:' + w, JSON.stringify(got[w])); }
       }
 
       function wordScore(col, w) {
         if (w.length < 2 || w.charAt(0) !== st.letter) return 0;
         if ((bank[col] || []).indexOf(w) !== -1) return 10;
+        const roots = ESM_ROOTS[col] || [];
+        for (const r of roots) { if (r && w.indexOf(r) !== -1) return 10; }
         if (ESM_ONLINE_COLS.indexOf(col) !== -1) {
           const o = online[w];
-          if (!o || !o.exists) return 0;
-          const keys = ESM_CAT_KEYS[col];
-          const catOk = (o.cats || []).some(function(c) { return keys.some(function(k) { return c.indexOf(k) !== -1; }); });
-          return catOk ? 10 : 5;
+          if (!o) return 0;
+          if (o.wp) return 10;
+          if (o.exists) {
+            const keys = ESM_CAT_KEYS[col];
+            const catOk = (o.cats || []).some(function(c) { return keys.some(function(k) { return c.indexOf(k) !== -1; }); });
+            return catOk ? 10 : 5;
+          }
+          return 0;
         }
         return 10;
       }
@@ -442,7 +470,7 @@ export default {
               u.claimed[key] = 1;
               u.coins += 100;
               await saveUser(uid, u);
-              msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins);
+              msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins);
             }
           }
           else if (data.startsWith('buy_')) {
@@ -467,6 +495,6 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v6 is running!');
+    return new Response('🎮 Bale Game Server v7 is running!');
   }
 };
