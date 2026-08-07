@@ -1,4 +1,4 @@
-// ========== میزگرد بله (ماژول سطح بالا) ==========
+// ========== میزگرد بله (v2: پیش‌بینی، شمارش معکوس، میزبان، جدول ماتریسی) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -10,8 +10,10 @@ const MZ_CAT_KEYS = {
 };
 const MZ_ROOTS = { 'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'] };
 const MZ_TAUNTS = ['به‌به! چه میزی داغ بود! 😎','این دور ترکوند! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
+const MZ_COUNTDOWN = 20;
 
 function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
+function mzShort(s) { return (s || 'بازیکن').slice(0, 8); }
 function mzRootHit(col, w) { const rs = MZ_ROOTS[col] || []; for (const r of rs) { if (r && w.indexOf(r) !== -1) return true; } return false; }
 async function mzBale(env, method, data) {
   const res = await fetch('https://tapi.bale.ai/bot' + (env.BALE_BOT_TOKEN || '') + '/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
@@ -36,7 +38,7 @@ async function mzOnlineCheck(words) {
   } catch (e) {}
   try {
     const r2 = await fetch('https://fa.wikipedia.org/w/api.php?action=query&titles=' + titles + '&format=json&origin=*');
-    const j2 = await r.json();
+    const j2 = await r2.json();
     const pages2 = (j2.query && j2.query.pages) || {};
     for (const id in pages2) { const pg = pages2[id]; wp[pg.title] = pg.missing === undefined; }
   } catch (e) {}
@@ -77,6 +79,7 @@ async function mzJudge(KV, st) {
     return 10;
   }
 
+  st.players.forEach(function(p) { p.cells = [0,0,0,0,0,0]; });
   MZ_COLS.forEach(function(col, i) {
     const scored = st.players.map(function(p) { return scoreWord(col, mzNorm(p.answers[col] || '')); });
     st.players.forEach(function(p, pi) {
@@ -85,13 +88,14 @@ async function mzJudge(KV, st) {
       const dup = st.players.some(function(o, oi) { return oi !== pi && s > 0 && mzNorm(o.answers[col] || '') === w; });
       if (dup) s = Math.ceil(s / 2);
       if (i === st.golden) s *= 2;
+      p.cells[i] = s;
       p.score += s;
     });
   });
   st.players.forEach(function(p) { p.score += (p.timeBonus || 0); });
   st.phase = 'result';
   const sorted = st.players.slice().sort(function(a, b) { return b.score - a.score; });
-  st.result = { winnerId: sorted[0].score > sorted[1].score ? sorted[0].id : null, sorted: sorted.map(function(p) { return { id: p.id, name: p.name, score: p.score }; }) };
+  st.result = { winnerId: sorted.length > 1 && sorted[0].score > sorted[1].score ? sorted[0].id : (sorted.length === 1 ? sorted[0].id : null), sorted: sorted.map(function(p) { return { id: p.id, name: p.name, score: p.score }; }) };
 }
 
 async function mzPostResult(env, KV, st) {
@@ -109,21 +113,26 @@ async function mzPostResult(env, KV, st) {
   const gTotal = parseInt(await KV.get('mzg:' + st.chat) || '0');
   await KV.put('mzg:' + st.chat, String(gTotal + total));
 
-  let betText = '';
+  let t = '🏁 نتیجهٔ میزگرد!\n\n';
+  t += 'ستون | ' + st.players.map(function(p) { return mzShort(p.name); }).join(' | ') + '\n';
+  MZ_COLS.forEach(function(col, i) {
+    t += col + ' | ' + st.players.map(function(p) { return (p.cells ? p.cells[i] : 0); }).join(' | ') + '\n';
+  });
+  t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
+  t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
+  const medals = ['🥇','','🥉','.','۵.','۶.','۷.','۸.'];
+  st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
+
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
+  let betText = '';
   for (const b of st.bets) {
+    const targetName = st.players[b.on] ? st.players[b.on].name : '؟';
     const u = await mzGetUser(KV, b.user);
-    if (winId === null) { u.coins += b.amount; betText += '↩️ شرط برگشت.\n'; }
-    else if (b.on === winIdx) { const gain = b.amount + Math.floor(b.amount * 0.8); u.coins += gain; betText += '💰 شرط‌بند برنده شد: +' + gain + '\n'; }
-    else betText += '😅 شرط سوخت.\n';
+    if (winId === null) { u.coins += b.amount; betText += '↩️ پیش‌بینی ' + b.name + ' دربارهٔ ' + targetName + ' برگشت.\n'; }
+    else if (b.on === winIdx) { const gain = b.amount + Math.floor(b.amount * 0.8); u.coins += gain; betText += '💰 ' + b.name + ' هوادارِ ' + targetName + ' برنده شد: +' + gain + '\n'; }
+    else betText += '😅 پیش‌بینی ' + b.name + ' دربارهٔ ' + targetName + ' درست نبود.\n';
     await KV.put('u:' + b.user, JSON.stringify(u));
   }
-
-  let t = '🏁 نتیجهٔ میزگرد!\n\n';
-  const medals = ['🥇','🥈','🥉'];
-  st.result.sorted.forEach(function(r, i) {
-    t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n';
-  });
   if (betText) t += '\n' + betText;
   t += '\n' + MZ_TAUNTS[Math.floor(Math.random() * MZ_TAUNTS.length)];
   await mzBale(env, 'sendMessage', { chat_id: st.chat, text: t });
@@ -134,7 +143,26 @@ async function mzPostResult(env, KV, st) {
   await KV.put('mz:' + st.chat, JSON.stringify(st));
 }
 
-async function mzHandle(update, env) {
+async function mzStartPlay(env, KV, st, key) {
+  st.phase = 'play';
+  st.letter = MZ_LETTERS[Math.floor(Math.random() * MZ_LETTERS.length)];
+  st.golden = Math.floor(Math.random() * MZ_COLS.length);
+  st.endsAt = Date.now() + 90000;
+  st.players.forEach(function(p) { p.idx = 0; p.answers = {}; p.submitted = false; p.score = 0; p.timeBonus = 0; p.cells = [0,0,0,0,0,0]; });
+  await KV.put(key, JSON.stringify(st));
+  const betRows = [];
+  for (let i = 0; i < st.players.length; i += 2) {
+    const row = [{ text: '🔮 ' + st.players[i].name, callback_data: 'mz_bet_' + i }];
+    if (st.players[i + 1]) row.push({ text: '🔮 ' + st.players[i + 1].name, callback_data: 'mz_bet_' + (i + 1) });
+    betRows.push(row);
+  }
+  await mzBale(env, 'sendMessage', { chat_id: st.chat, text: '🔔️ نبرد شروع شد!\nحرف: ' + st.letter + ' | ستون طلایی: ' + MZ_COLS[st.golden] + ' ⭐\n جواب‌ها رو خصوصی به بات بفرستید.\n🔮 تماشاگرها: پیش‌بینی کنید کی قهرمانه!', reply_markup: { inline_keyboard: betRows } });
+  for (const p of st.players) {
+    await mzBale(env, 'sendMessage', { chat_id: p.id, text: '🏟️ میزگرد شروع!\nحرف: ' + st.letter + '\n۱/۶ ' + MZ_COLS[0] + '؟' });
+  }
+}
+
+async function mzHandle(update, env, ctx) {
   const KV = env.GAME_KV;
   if (update.message) {
     const msg = update.message;
@@ -143,15 +171,21 @@ async function mzHandle(update, env) {
     const isGroup = chat.type === 'group' || chat.type === 'supergroup';
 
     if (isGroup && (text === '/نبرد' || text === '/nabard')) {
+      const uid = String(msg.from.id);
       const key = 'mz:' + chat.id;
       const existing = await KV.get(key, 'json');
-      if (existing && existing.phase !== 'result') { await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⚔️ یه میز بالفعل بازه! یا بشین، یا صبر کن تموم بشه.' }); return true; }
-      const st = { chat: chat.id, phase: 'join', createdAt: Date.now(), players: [], bets: [], letter: null, golden: 0, endsAt: 0, result: null };
+      if (existing && existing.phase !== 'result') {
+        const m = '⚔️ یه میز بالفعل بازه! یا بشین، یا صبر کن تموم بشه.';
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: m });
+        await mzBale(env, 'sendMessage', { chat_id: uid, text: m });
+        return true;
+      }
+      const st = { chat: chat.id, host: uid, phase: 'join', createdAt: Date.now(), players: [], bets: [], letter: null, golden: 0, endsAt: 0, result: null };
       await KV.put(key, JSON.stringify(st));
       let active = (await KV.get('mz_active', 'json')) || [];
       if (active.indexOf(String(chat.id)) === -1) active.push(String(chat.id));
       await KV.put('mz_active', JSON.stringify(active));
-      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🏟️ میزگرد واژه‌ها باز شد!\n۹۰ ثانیه، ۶ ستون، ستون طلایی ×۲.\nجواب‌ها خصوصی؛ نتیجه عمومی! تماشاگرها شرط ببندند 💰', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }], [{ text: '⚔️ شروع نبرد', callback_data: 'mz_start' }] ] } });
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🏟️ میزگرد واژه‌ها باز شد! (میزبان: ' + (msg.from.first_name || '؟') + ')\n۹۰ ثانیه، ۶ ستون، ستون طلایی ×۲.\nجواب‌ها خصوصی؛ نتیجه عمومی! تماشاگرها پیش‌بینی کنند 🔮', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }], [{ text: '⚔️ شروع نبرد (میزبان)', callback_data: 'mz_start' }] ] } });
       return true;
     }
 
@@ -197,7 +231,7 @@ async function mzHandle(update, env) {
         if (st.phase !== 'join') { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'میز از دست رفت! دور بعد زودتر بیا.' }); return true; }
         if (st.players.length >= 8) return true;
         if (!st.players.find(function(p) { return p.id === uid; })) {
-          st.players.push({ id: uid, name: name, answers: {}, idx: 0, submitted: false, score: 0, timeBonus: 0 });
+          st.players.push({ id: uid, name: name, answers: {}, idx: 0, submitted: false, score: 0, timeBonus: 0, cells: [0,0,0,0,0,0] });
           await KV.put('mzu:' + uid, String(chatId));
           await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🪑 ' + name + ' پای میز نشست! (' + st.players.length + ' نفر)' });
           await KV.put(key, JSON.stringify(st));
@@ -206,23 +240,25 @@ async function mzHandle(update, env) {
       }
 
       if (data === 'mz_start') {
-        if (st.phase !== 'join' || st.players.length < 2) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'حداقل ۲ نفر باید پای میز باشن!' }); return true; }
-        st.phase = 'play';
-        st.letter = MZ_LETTERS[Math.floor(Math.random() * MZ_LETTERS.length)];
-        st.golden = Math.floor(Math.random() * MZ_COLS.length);
-        st.endsAt = Date.now() + 90000;
-        const betRows = [];
-        for (let i = 0; i < st.players.length; i += 2) {
-          const row = [{ text: '🪙 شرط روی ' + st.players[i].name, callback_data: 'mz_bet_' + i }];
-          if (st.players[i + 1]) row.push({ text: '🪙 شرط روی ' + st.players[i + 1].name, callback_data: 'mz_bet_' + (i + 1) });
-          betRows.push(row);
+        if (uid !== st.host) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'فقط میزبان می‌تونه نبرد رو شروع کنه!' }); return true; }
+        if (st.phase !== 'join') return true;
+        if (st.players.length < 2) {
+          const m = 'حداقل ۲ نفر باید پای میز باشن!';
+          await mzBale(env, 'sendMessage', { chat_id: chatId, text: m });
+          await mzBale(env, 'sendMessage', { chat_id: uid, text: m });
+          return true;
         }
-        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '⚔️ نبرد شروع شد!\nحرف: ' + st.letter + ' | ستون طلایی: ' + MZ_COLS[st.golden] + ' ⭐\n جواب‌ها رو خصوصی به بات بفرستید.\n💰 تماشاگرها: شرط ببندید!', reply_markup: { inline_keyboard: betRows } });
-        for (const p of st.players) {
-          p.idx = 0; p.answers = {}; p.submitted = false; p.score = 0;
-          await mzBale(env, 'sendMessage', { chat_id: p.id, text: '🏟️ میزگرد شروع!\nحرف: ' + st.letter + '\n۱/۶ ' + MZ_COLS[0] + '؟' });
-        }
+        st.phase = 'countdown';
+        st.startsAt = Date.now() + MZ_COUNTDOWN * 1000;
         await KV.put(key, JSON.stringify(st));
+        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '📢🔔 نبرد تا ' + MZ_COUNTDOWN + ' ثانیه دیگه شروع میشه! ⏳ آماده باشید...' });
+        if (ctx && ctx.waitUntil) {
+          ctx.waitUntil((async function() {
+            await new Promise(function(r) { setTimeout(r, MZ_COUNTDOWN * 1000 + 500); });
+            const st2 = await KV.get(key, 'json');
+            if (st2 && st2.phase === 'countdown') await mzStartPlay(env, KV, st2, key);
+          })());
+        }
         return true;
       }
 
@@ -231,14 +267,14 @@ async function mzHandle(update, env) {
         const idx = Number(data.slice(7));
         const target = st.players[idx];
         if (!target) return true;
-        if (st.bets.find(function(b) { return b.user === uid; })) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً شرط بستی!' }); return true; }
+        if (st.bets.find(function(b) { return b.user === uid; })) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً پیش‌بینی کردی!' }); return true; }
         const u = await mzGetUser(KV, uid);
         if (u.coins < 20) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'سکه کافی نیست (۲۰ لازمه)' }); return true; }
         u.coins -= 20;
         await KV.put('u:' + uid, JSON.stringify(u));
-        st.bets.push({ user: uid, on: idx, amount: 20 });
+        st.bets.push({ user: uid, name: name, on: idx, amount: 20 });
         await KV.put(key, JSON.stringify(st));
-        await mzBale(env, 'sendMessage', { chat_id: uid, text: '💰 شرط ۲۰ سکه روی ' + target.name + ' بسته شد!' });
+        await mzBale(env, 'sendMessage', { chat_id: uid, text: '🔮 پیش‌بینی ۲۰ سکه‌ای روی قهرمانیِ ' + target.name + ' ثبت شد!' });
         return true;
       }
       return true;
@@ -248,7 +284,7 @@ async function mzHandle(update, env) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const API = 'https://tapi.bale.ai/bot' + (env.BALE_BOT_TOKEN || '');
     const KV = env.GAME_KV;
@@ -306,7 +342,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','','🥉','۴.','۵.'];
+      const medals = ['🥇','🥈','🥉','۴.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) {
         t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n';
@@ -326,7 +362,7 @@ export default {
     async function sendTasks(chatId) {
       await bale('sendMessage', {
         chat_id: chatId,
-        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
+        text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)',
         reply_markup: { inline_keyboard: [
           [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }],
           [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }],
@@ -377,15 +413,14 @@ export default {
       }
     }
 
-    // ---------- اسم‌فامیل: نبرد واژه‌ها (چهار لایه اعتبارسنجی) ----------
-    const ESM_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
-    const ESM_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
+    // ---------- اسم‌فامیل آنلاین (چهار لایه اعتبارسنجی) ----------
+    const ESM_COLS = MZ_COLS;
+    const ESM_LETTERS = MZ_LETTERS;
     const ESM_SHOP = [
       { id: 'mirror', name: '👁️ آینه اضافه', price: 50 },
       { id: 'fog', name: '🌫️ مه اضافه', price: 40 }
     ];
     const ESM_CAT_KEYS = MZ_CAT_KEYS;
-    const ESM_ROOTS = MZ_ROOTS;
     const ESM_ONLINE_COLS = MZ_ONLINE_COLS;
 
     function normFa(s) { return mzNorm(s); }
@@ -406,8 +441,6 @@ export default {
             return list;
         } catch (e) { return {}; }
     }
-
-    async function esmOnlineCheck(words) { return await mzOnlineCheck(words); }
 
     async function esmJudge(st) {
       const p0 = st.players[0], p1 = st.players[1];
@@ -432,7 +465,7 @@ export default {
         if (c) online[w] = c; else toFetch.push(w);
       }
       if (toFetch.length) {
-        const got = await esmOnlineCheck(toFetch);
+        const got = await mzOnlineCheck(toFetch);
         for (const w in got) { online[w] = got[w]; KV.put('wb2:' + w, JSON.stringify(got[w])); }
       }
 
@@ -608,8 +641,7 @@ export default {
       try {
         const update = await request.json();
 
-        // میزگرد: فرمان گروه، جواب خصوصی، دکمه‌ها
-        if (await mzHandle(update, env)) return new Response('ok');
+        if (await mzHandle(update, env, ctx)) return new Response('ok');
 
         if (update.message) {
           const text = update.message.text || '';
@@ -677,7 +709,7 @@ export default {
               u.claimed[key] = 1;
               u.coins += 100;
               await saveUser(uid, u);
-              msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins);
+              msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins);
             }
           }
           else if (data.startsWith('buy_')) {
@@ -702,7 +734,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v8 is running!');
+    return new Response('🎮 Bale Game Server v9 is running!');
   },
 
   async scheduled(event, env) {
@@ -712,7 +744,10 @@ export default {
     for (const chatId of active) {
       const st = await KV.get('mz:' + chatId, 'json');
       if (!st) continue;
-      if (st.phase === 'play' && Date.now() > st.endsAt) {
+      if (st.phase === 'countdown' && Date.now() > st.startsAt) {
+        await mzStartPlay(env, KV, st, 'mz:' + chatId);
+        remaining.push(chatId);
+      } else if (st.phase === 'play' && Date.now() > st.endsAt) {
         st.players.forEach(function(p) { if (!p.submitted) { p.submitted = true; p.timeBonus = 0; } });
         await mzJudge(KV, st);
         await mzPostResult(env, KV, st);
