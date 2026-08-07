@@ -128,13 +128,20 @@ export default {
       }
     }
 
-    // ---------- اسم‌فامیل: نبرد واژه‌ها (v3 - بانک واژه زنده) ----------
+    // ---------- اسم‌فامیل: نبرد واژه‌ها (v4 - اعتبارسنجی آنلاین) ----------
     const ESM_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
     const ESM_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
     const ESM_SHOP = [
       { id: 'mirror', name: '👁️ آینه اضافه', price: 50 },
       { id: 'fog', name: '🌫️ مه اضافه', price: 40 }
     ];
+    const ESM_CAT_KEYS = {
+      'حیوان': ['جانور','حیوان','پرنده','ماهی','حشره','خزنده','پستاندار'],
+      'میوه': ['میوه','گیاه','خوراکی','درخت'],
+      'شهر': ['شهر','روستا','استان','منطقه','ایران','کشور'],
+      'غذا': ['غذا','خورش','آشپزی','شیرینی','نوشیدنی','دسر']
+    };
+    const ESM_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
 
     function normFa(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
     async function esmGet(r) { return await KV.get('esm:' + r, 'json'); }
@@ -155,18 +162,72 @@ export default {
         } catch (e) { return {}; }
     }
 
+    async function esmOnlineCheck(words) {
+      const out = {};
+      const uniq = words.filter(function(w, i) { return words.indexOf(w) === i; }).slice(0, 15);
+      if (!uniq.length) return out;
+      try {
+        const titles = uniq.map(encodeURIComponent).join('|');
+        const r = await fetch('https://fa.wiktionary.org/w/api.php?action=query&prop=categories&titles=' + titles + '&cllimit=50&format=json&origin=*');
+        const j = await r.json();
+        const pages = (j.query && j.query.pages) || {};
+        for (const id in pages) {
+          const pg = pages[id];
+          const title = pg.title || '';
+          if (pg.missing !== undefined) { out[title] = { exists: false, cats: [] }; continue; }
+          out[title] = { exists: true, cats: (pg.categories || []).map(function(c) { return c.title; }) };
+        }
+        uniq.forEach(function(w) { if (!out[w]) out[w] = { exists: false, cats: [] }; });
+      } catch (e) {}
+      return out;
+    }
+
     async function esmJudge(st) {
       const p0 = st.players[0], p1 = st.players[1];
       let s0 = 0, s1 = 0;
       const detail = [];
       const bank = await esmLoadBank();
+
+      const needOnline = [];
+      ESM_COLS.forEach(function(col) {
+        if (ESM_ONLINE_COLS.indexOf(col) === -1) return;
+        [p0.answers[col], p1.answers[col]].forEach(function(w) {
+          w = normFa(w);
+          if (w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).indexOf(w) === -1) needOnline.push(w);
+        });
+      });
+
+      const online = {};
+      const toFetch = [];
+      const uniqNeed = needOnline.filter(function(w, i) { return needOnline.indexOf(w) === i; });
+      for (const w of uniqNeed) {
+        const c = await KV.get('wb:' + w, 'json');
+        if (c) online[w] = c; else toFetch.push(w);
+      }
+      if (toFetch.length) {
+        const got = await esmOnlineCheck(toFetch);
+        for (const w in got) { online[w] = got[w]; KV.put('wb:' + w, JSON.stringify(got[w])); }
+      }
+
+      function wordScore(col, w) {
+        if (w.length < 2 || w.charAt(0) !== st.letter) return 0;
+        if ((bank[col] || []).indexOf(w) !== -1) return 10;
+        if (ESM_ONLINE_COLS.indexOf(col) !== -1) {
+          const o = online[w];
+          if (!o || !o.exists) return 0;
+          const keys = ESM_CAT_KEYS[col];
+          const catOk = (o.cats || []).some(function(c) { return keys.some(function(k) { return c.indexOf(k) !== -1; }); });
+          return catOk ? 10 : 5;
+        }
+        return 10;
+      }
+
       ESM_COLS.forEach(function(col, i) {
         const a = normFa(p0.answers[col] || '');
         const b = normFa(p1.answers[col] || '');
-        function val(w) { return w.length >= 2 && w.charAt(0) === st.letter && (bank[col] || []).includes(w); }
-        let pa = val(a) ? 10 : 0;
-        let pb = val(b) ? 10 : 0;
-        if (pa && pb && a === b) { pa = 5; pb = 5; }
+        let pa = wordScore(col, a);
+        let pb = wordScore(col, b);
+        if (pa && pb && a === b) { pa = Math.ceil(pa / 2); pb = Math.ceil(pb / 2); }
         const mult = (st.golden === i) ? 2 : 1;
         pa *= mult; pb *= mult;
         s0 += pa; s1 += pb;
@@ -381,7 +442,7 @@ export default {
               u.claimed[key] = 1;
               u.coins += 100;
               await saveUser(uid, u);
-              msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins);
+              msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins);
             }
           }
           else if (data.startsWith('buy_')) {
@@ -406,6 +467,6 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v5 is running!');
+    return new Response('🎮 Bale Game Server v6 is running!');
   }
 };
