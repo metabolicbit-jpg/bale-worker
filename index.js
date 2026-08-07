@@ -7,6 +7,7 @@ export default {
     const CHANNEL = '@bale_game_center';
     const GROUP = '@game_center_bale';
     const GAME_URL = 'https://metabolicbit-jpg.github.io/bale-game/flappy.html';
+    const SHADOW_URL = 'https://metabolicbit-jpg.github.io/bale-game/shadow.html';
 
     const SHOP = [
       { id: 'skin_gold', name: '🐤 پرنده طلایی', price: 200 },
@@ -149,7 +150,7 @@ export default {
               chat_id: chat.id,
               text: '🎮 به مرکز بازی خوش اومدی!' + extra + '\n\n🪙 سکه تو: ' + fa(u.coins),
               reply_markup: { inline_keyboard: [
-                [{ text: '🎮 بازی کن و سکه بگیر', url: GAME_URL + '?user=' + uid }],
+                [{ text: '🐤 پرنده‌پرش', url: GAME_URL + '?user=' + uid }, { text: '👤 سایه‌پرش', url: SHADOW_URL + '?user=' + uid }],
                 [{ text: '📋 کارها', callback_data: 'tasks' }, { text: '🛒 فروشگاه', callback_data: 'shop' }],
                 [{ text: '🏆 رتبه‌بندی', callback_data: 'rank' }, { text: '🪙 سکه‌هام', callback_data: 'coins' }]
               ] }
