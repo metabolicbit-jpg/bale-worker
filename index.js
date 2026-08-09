@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v8: موتور مجلهٔ محتوا + سیلوی مقاوم) ==========
+// ========== میزگرد بله (v9: دیسپچر تک‌cron + سیلوی مقاوم) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -40,7 +40,6 @@ async function mzLearnedHas(KV, col, w) {
   return l.indexOf(w) !== -1;
 }
 
-// ---------- سیلوی محتوا (لایه‌ها: KV ← گیت‌هاب ← اضطراری) ----------
 async function cbLoadBank(KV) {
   let bank = null;
   try { bank = await KV.get('cb_bank', 'json'); } catch (e) {}
@@ -131,7 +130,7 @@ async function mzConsensus(KV, env, col, w, uid) {
           const u = await mzGetUser(KV, id);
           u.coins += 10;
           await KV.put('u:' + id, JSON.stringify(u));
-          try { await mzBale(env, 'sendMessage', { chat_id: id, text: '🎉 واژه «' + w + '» که ثبت کرده بودی، با اجماع بازیکن‌ها به فرهنگ‌نامهٔ نبرد واژه‌ها اضافه شد! +۱۰ سکه' }); } catch (e) {}
+          try { await mzBale(env, 'sendMessage', { chat_id: id, text: '🎉 واژهٔ «' + w + '» که ثبت کرده بودی، با اجماع بازیکن‌ها به فرهنگ‌نامهٔ نبرد واژه‌ها اضافه شد! +۱۰ سکه' }); } catch (e) {}
         }
       }
     }
@@ -174,10 +173,10 @@ async function engineEvening(env) {
   const KV = env.GAME_KV;
   const CHANNEL = '@bale_game_center';
   try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎲 میزگرد امشب!\n\nساعت ۲۱:۳۰ پای میز حاضر باش؛ توی گروه «مرکز بازی» بنویس /نبرد\n\n👥 ble.ir/game_center_bale\n📖 راهنما: /rahnama' }); } catch (e) {}
-  const lb = (await KV.get('lb', 'json')) || [];
+  const lb = (await KV.get('lb', 'json') || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','🥈','🥉','۴.','۵.'];
+    const medals = ['🥇','','🥉','.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t }); } catch (e) {}
@@ -262,7 +261,7 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','','🥉','.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
@@ -590,7 +589,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n ورود روزانه: +۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -874,20 +873,41 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v15 is running!');
+    return new Response('🎮 Bale Game Server v16 is running!');
   },
 
   async scheduled(event, env) {
     const KV = env.GAME_KV;
     try {
-      if (event && event.cron === '30 5 * * *') await engineMorning(env);
-      if (event && event.cron === '30 17 * * *') await engineEvening(env);
-      if (event && event.cron === '0 5 * * *') await cbPost(env, 'danestani');
-      if (event && event.cron === '30 7 * * *') await cbPost(env, 'tarfand');
-      if (event && event.cron === '30 10 * * *') await cbPost(env, 'nabz');
-      if (event && event.cron === '30 13 * * *') await cbPost(env, (new Date().getDate() % 2 === 0) ? 'bazi' : 'ai');
-      if (event && event.cron === '0 16 * * *') await cbPost(env, 'moma', { riddle: true });
-      if (event && event.cron === '0 19 * * *') await cbAnswer(env);
+      const d = new Date(Date.now() + 3.5 * 3600 * 1000);
+      const hm = d.getUTCHours() * 60 + d.getUTCMinutes();
+      const date = d.toISOString().slice(0, 10);
+      const SLOTS = [
+        [510, 'danestani'],
+        [540, 'morning'],
+        [660, 'tarfand'],
+        [840, 'nabz'],
+        [1020, 'bazi'],
+        [1170, 'moma'],
+        [1260, 'evening'],
+        [1350, 'answer']
+      ];
+      for (const s of SLOTS) {
+        if (hm >= s[0] && hm < s[0] + 10) {
+          const key = 'slot:' + date + ':' + s[1];
+          if (!(await KV.get(key))) {
+            await KV.put(key, '1', { expirationTtl: 86400 });
+            try {
+              if (s[1] === 'morning') await engineMorning(env);
+              else if (s[1] === 'evening') await engineEvening(env);
+              else if (s[1] === 'moma') await cbPost(env, 'moma', { riddle: true });
+              else if (s[1] === 'answer') await cbAnswer(env);
+              else if (s[1] === 'bazi') await cbPost(env, (new Date().getDate() % 2 === 0) ? 'bazi' : 'ai');
+              else await cbPost(env, s[1]);
+            } catch (e) {}
+          }
+        }
+      }
     } catch (e) { console.log('engine error', e && e.message); }
     const active = (await KV.get('mz_active', 'json')) || [];
     const remaining = [];
