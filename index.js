@@ -654,8 +654,8 @@ export default {
     }
     function cbMarkedButtons(st, pid) {
       return { inline_keyboard: [ [
-        { text: (st.likes > 0 ? '❤️ پسندیده شد ×' + fa(st.likes) : '❤️ پسندیدم (+۳)'), callback_data: 'cb_like:' + pid },
-        { text: (st.sug ? '⬆️ پیشنهاد شد برای مجله' : '💡 پیشنهاد به مجله (+۵)'), callback_data: 'cb_sug' }
+        { text: (st.likes > 0 ? '❤️ ' + fa(st.likes) + ' لایک' : '❤️ پسندیدم (+۳)'), callback_data: 'cb_like:' + pid },
+        { text: (st.sug ? '⬆️ پیشنهاد شد' : '💡 پیشنهاد به مجله (+۵)'), callback_data: 'cb_sug' }
       ] ] };
     }
     function json(obj) {
