@@ -173,7 +173,7 @@ async function engineEvening(env) {
   const KV = env.GAME_KV;
   const CHANNEL = '@bale_game_center';
   try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎲 میزگرد امشب!\n\nساعت ۲۱:۳۰ پای میز حاضر باش؛ توی گروه «مرکز بازی» بنویس /نبرد\n\n👥 ble.ir/game_center_bale\n📖 راهنما: /rahnama' }); } catch (e) {}
-  const lb = (await KV.get('lb', 'json') || [];
+  const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
     const medals = ['🥇','','🥉','.','۵.'];
@@ -589,7 +589,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n ورود روزانه: +۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
