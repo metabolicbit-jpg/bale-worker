@@ -727,7 +727,11 @@ export default {
       await bale('sendMessage', { chat_id: chatId, text: t, reply_markup: { inline_keyboard: rows } });
     }
 
-    if (url.pathname === '/api/submit') {
+    if (url.pathname === '/app') {
+      const html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:sans-serif;background:#0f2027;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}button{font-size:22px;padding:14px 40px;border:0;border-radius:14px;background:#22c55e;color:#fff}</style></head><body><button id="b">🚀 شروع کن</button><script>var B=window.Telegram&&window.Telegram.WebApp;try{B&&B.ready&&B.ready()}catch(e){}function go(){try{if(B&&B.sendData){B.sendData("menu_start");B.close();return}}catch(e){}location.href="https://ble.ir/game_balebot"}document.getElementById("b").onclick=go;try{if(B&&B.sendData){B.sendData("menu_start");B.close()}}catch(e){}</script></body></html>';
+      return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+    }
+    if (url.pathname === '/api/submit') { if (url.pathname === '/api/submit') {
       if (request.method === 'OPTIONS') return json({ ok: true });
       if (request.method === 'POST') {
         try {
@@ -971,7 +975,8 @@ export default {
         } catch (e) {}
         if (await mzHandle(update, env, ctx)) return new Response('ok');
         if (update.message) {
-          const text = update.message.text || '';
+          let text = update.message.text || '';
+          if (!text && update.message.web_app_data && update.message.web_app_data.data === 'menu_start') text = '/start';
           const chat = update.message.chat;
           const uid = String(chat.id);
           const u = await getUser(uid);
@@ -986,6 +991,10 @@ export default {
                   { command: 'rahnama', description: '📖 راهنمای میزگرد' }
                 ] });
                 await KV.put('cmds_v1', '1');
+              }
+              if (!(await KV.get('menubtn_v1'))) {
+                try { await bale('setChatMenuButton', { menu_button: { type: 'web_app', text: 'شروع کن', web_app: { url: url.origin + '/app' } } }); } catch (e) {}
+                await KV.put('menubtn_v1', '1');
               }
               const isMem = await mzCheckMember(env, uid);
               if (!isMem) {
