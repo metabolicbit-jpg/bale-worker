@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v7: سکوت کانال + موتور محتوا + دادگاه میز) ==========
+// ========== میزگرد بله (v8: موتور مجلهٔ محتوا + سیلوی مقاوم) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -12,6 +12,15 @@ const MZ_ROOTS = { 'غذا': ['پلو','خورش','کباب','آش','سوپ','س
 const MZ_TAUNTS = ['به‌به! چه میزی داغ بود! 😎','این دور ترکوند! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
 const MZ_COUNTDOWN = 20;
 const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: توی گروه بنویس /نبرد\n۲)  عضوها با دکمهٔ «نشستن پای میز» می‌شن (۲ تا ۸ نفر)\n۳) ⚔️ میزبان با «شروع نبرد» آغاز می‌کنه (شمارش معکوس ۲۰ ثانیه)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵) 🏁 نتیجه عمومی + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها پیش‌بینی می‌کنن کی قهرمانه\n۷) ️ کلمات ردشده به دادگاه میز میرن؛ با نصف+۱ رأی مثبت، تأیید و به فرهنگ‌نامه اضافه میشن\n۸) ️ بستن میز: /لغو (فقط میزبان)';
+
+const CB_URL = 'https://metabolicbit-jpg.github.io/bale-game/content.json';
+const CB_EMERG = [
+  '🧠 آیا می‌دانستید؟ مغز شما حتی وقتی می‌خندید هم در حال یادگیریه! 😄',
+  '❓ معما: چه چیزی مال توئه ولی بقیه بیشتر استفاده‌ش می‌کنن؟ (جواب: اسمت!)',
+  '💡 ترفند: قانون ۲ دقیقه — اگه کاری کمتر از ۲ دقیقه‌ست، همین حالا انجامش بده!',
+  '🎮 یادت باشه: هر شب ساعت ۲۱ میزگرد واژه‌ها در گروه! /نبرد',
+  '🤖 پرامپت روز: «یه نکته بگو که ۹۰٪ آدم‌ها نمی‌دونن»'
+];
 
 function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
 function mzShort(s) { return (s || 'بازیکن').slice(0, 8); }
@@ -30,6 +39,51 @@ async function mzLearnedHas(KV, col, w) {
   const l = (await KV.get('learned:' + col, 'json')) || [];
   return l.indexOf(w) !== -1;
 }
+
+// ---------- سیلوی محتوا (لایه‌ها: KV ← گیت‌هاب ← اضطراری) ----------
+async function cbLoadBank(KV) {
+  let bank = null;
+  try { bank = await KV.get('cb_bank', 'json'); } catch (e) {}
+  if (bank && bank.sections) return bank;
+  try {
+    const r = await fetch(CB_URL);
+    bank = await r.json();
+    await KV.put('cb_bank', JSON.stringify(bank));
+    return bank;
+  } catch (e) { return null; }
+}
+async function cbPost(env, sectionKey, opts) {
+  const KV = env.GAME_KV;
+  const CHANNEL = '@bale_game_center';
+  const bank = await cbLoadBank(KV);
+  let text = null;
+  if (bank && bank.sections && bank.sections[sectionKey]) {
+    const sec = bank.sections[sectionKey];
+    const items = sec.items || [];
+    if (items.length) {
+      let ptr = parseInt(await KV.get('cb_ptr:' + sectionKey) || '0');
+      if (isNaN(ptr) || ptr >= items.length) ptr = 0;
+      const it = items[ptr];
+      await KV.put('cb_ptr:' + sectionKey, String(ptr + 1));
+      text = (sec.emoji || '') + ' ' + it.t + '\n\n' + (sec.hash || '');
+      if (opts && opts.riddle) {
+        text += '\n\n🕰️ جواب ساعت ۲۲:۳۰ همین‌جا!';
+        await KV.put('cb_riddle', JSON.stringify({ date: new Date().toISOString().slice(0, 10), a: it.a || '' }));
+      }
+    }
+  }
+  if (!text) text = CB_EMERG[Math.floor(Math.random() * CB_EMERG.length)];
+  try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: text }); } catch (e) {}
+}
+async function cbAnswer(env) {
+  const KV = env.GAME_KV;
+  const r = (await KV.get('cb_riddle', 'json')) || null;
+  const today = new Date().toISOString().slice(0, 10);
+  if (r && r.date === today && r.a) {
+    try { await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: '✅ جواب معمای امروز: ' + r.a + '\n\nاگه درست حدس زدی، به خودت یه 🏆 بده! فردا معمای تازه.' }); } catch (e) {}
+  }
+}
+
 async function mzOnlineCheck(words) {
   const out = {};
   const uniq = words.filter(function(w, i) { return words.indexOf(w) === i; }).slice(0, 15);
@@ -77,7 +131,7 @@ async function mzConsensus(KV, env, col, w, uid) {
           const u = await mzGetUser(KV, id);
           u.coins += 10;
           await KV.put('u:' + id, JSON.stringify(u));
-          try { await mzBale(env, 'sendMessage', { chat_id: id, text: '🎉 واژهٔ «' + w + '» که ثبت کرده بودی، با اجماع بازیکن‌ها به فرهنگ‌نامهٔ نبرد واژه‌ها اضافه شد! +۱۰ سکه' }); } catch (e) {}
+          try { await mzBale(env, 'sendMessage', { chat_id: id, text: '🎉 واژه «' + w + '» که ثبت کرده بودی، با اجماع بازیکن‌ها به فرهنگ‌نامهٔ نبرد واژه‌ها اضافه شد! +۱۰ سکه' }); } catch (e) {}
         }
       }
     }
@@ -123,7 +177,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','','🥉','.','۵.'];
+    const medals = ['🥇','🥈','🥉','۴.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t }); } catch (e) {}
@@ -208,7 +262,7 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','','🥉','۴.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
@@ -522,7 +576,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','🥈','','۴.','۵.'];
+      const medals = ['🥇','','🥉','.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n'; });
       return t;
@@ -536,7 +590,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -820,7 +874,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v14 is running!');
+    return new Response('🎮 Bale Game Server v15 is running!');
   },
 
   async scheduled(event, env) {
@@ -828,6 +882,12 @@ export default {
     try {
       if (event && event.cron === '30 5 * * *') await engineMorning(env);
       if (event && event.cron === '30 17 * * *') await engineEvening(env);
+      if (event && event.cron === '0 5 * * *') await cbPost(env, 'danestani');
+      if (event && event.cron === '30 7 * * *') await cbPost(env, 'tarfand');
+      if (event && event.cron === '30 10 * * *') await cbPost(env, 'nabz');
+      if (event && event.cron === '30 13 * * *') await cbPost(env, (new Date().getDate() % 2 === 0) ? 'bazi' : 'ai');
+      if (event && event.cron === '0 16 * * *') await cbPost(env, 'moma', { riddle: true });
+      if (event && event.cron === '0 19 * * *') await cbAnswer(env);
     } catch (e) { console.log('engine error', e && e.message); }
     const active = (await KV.get('mz_active', 'json')) || [];
     const remaining = [];
