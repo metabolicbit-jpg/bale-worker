@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v15: دکمه روی همه پست‌ها + لایک واقعی + پیشنهاد پست) ==========
+// ========== میزگرد بله (v16: نشانگر لایک/پیشنهاد روی پست + انتشار با دکمه) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -11,7 +11,7 @@ const MZ_CAT_KEYS = {
 const MZ_ROOTS = { 'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'] };
 const MZ_TAUNTS = ['به‌به! چه میزی داغ بود! 😎','این دور ترکوند! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
 const MZ_COUNTDOWN = 20;
-const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: توی گروه بنویس /نبرد\n۲)  عضوها با دکمهٔ «نشستن پای میز» می‌شن (۲ تا ۸ نفر)\n۳) ⚔️ میزبان با «شروع نبرد» آغاز می‌کنه (شمارش معکوس ۲۰ ثانیه)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵) 🏁 نتیجه عمومی + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها پیش‌بینی می‌کنن کی قهرمانه\n۷) ️ کلمات ردشده به دادگاه میز میرن؛ با نصف+۱ رأی مثبت، تأیید و به فرهنگ‌نامه اضافه میشن\n۸) ️ بستن میز: /لغو (فقط میزبان)';
+const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: توی گروه بنویس /نبرد\n۲)  عضوها با دکمهٔ «نشستن پای میز» می‌شن (۲ تا ۸ نفر)\n۳) ⚔️ میزبان با «شروع نبرد» آغاز می‌کنه (شمارش معکوس ۲۰ ثانیه)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵)  نتیجه عمومی + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها پیش‌بینی می‌کنن کی قهرمانه\n۷) ️ کلمات ردشده به دادگاه میز میرن؛ با نصف+۱ رأی مثبت، تأیید و به فرهنگ‌نامه اضافه میشن\n۸) ️ بستن میز: /لغو (فقط میزبان)';
 
 const CB_URL = 'https://metabolicbit-jpg.github.io/bale-game/content.json';
 const CB_EMERG = [
@@ -236,7 +236,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','🥈','🥉','۴.','۵.'];
+    const medals = ['🥇','','🥉','.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t, reply_markup: cbButtons('board:' + today) }); } catch (e) {}
@@ -401,6 +401,16 @@ async function mzHandle(update, env, ctx) {
     if (text === '/admin') {
       await KV.put('admin_id', String((msg.from && msg.from.id) || chat.id));
       await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ شناسه‌ات به‌عنوان ادمینِ تست ذخیره شد.' });
+      return true;
+    }
+    if (text.indexOf('/پست ') === 0 || text.indexOf('/post ') === 0) {
+      const uid2 = String((msg.from && msg.from.id) || chat.id);
+      const adminId = await KV.get('admin_id');
+      if (uid2 === adminId) {
+        const body2 = text.slice(text.indexOf(' ') + 1);
+        const r = await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: body2, reply_markup: cbButtons('apost:' + Date.now()) });
+        await mzBale(env, 'sendMessage', { chat_id: uid2, text: (r && r.ok) ? '📢 پست با دکمه‌های تعامل منتشر شد!' : '❌ انتشار ناموفق بود.' });
+      } else { await mzBale(env, 'sendMessage', { chat_id: uid2, text: 'فقط ادمین می‌تونه پست بذاره.' }); }
       return true;
     }
     if (text === '/لاگ' || text === '/log') {
@@ -646,7 +656,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','','🥉','۴.','۵.'];
+      const medals = ['🥇','','🥉','.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n'; });
       return t;
@@ -660,7 +670,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -880,12 +890,12 @@ export default {
     if (request.method === 'POST' && url.pathname === '/webhook') {
       try {
         const update = await request.json();
-        if (update.channel_post) {
+        const chPost = update.channel_post || (update.message && update.message.chat && update.message.chat.type === 'channel' ? update.message : null);
+        if (chPost) {
           try {
-            const ch = update.channel_post;
-            if (ch && ch.chat && ch.message_id && !(ch.reply_markup && ch.reply_markup.inline_keyboard)) {
-              const pid = 'post:' + ch.chat.id + ':' + ch.message_id;
-              await bale('editMessageReplyMarkup', { chat_id: ch.chat.id, message_id: ch.message_id, reply_markup: cbButtons(pid) });
+            if (chPost.message_id && !(chPost.reply_markup && chPost.reply_markup.inline_keyboard)) {
+              const pid = 'post:' + chPost.chat.id + ':' + chPost.message_id;
+              await bale('editMessageReplyMarkup', { chat_id: chPost.chat.id, message_id: chPost.message_id, reply_markup: cbButtons(pid) });
             }
           } catch (e) {}
           return new Response('ok');
@@ -953,6 +963,12 @@ export default {
             u.coins += 3;
             await saveUser(uid, u);
             try { await bale('setMessageReaction', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, emoji: '❤️' }); } catch (e) {}
+            try {
+              const lc = parseInt(await KV.get('likect:' + pid) || '0') + 1;
+              await KV.put('likect:' + pid, String(lc));
+              const base = String(cb.message.text || '').split('\n').filter(function(ln) { return ln.indexOf('❤️ ×') !== 0; }).join('\n');
+              await bale('editMessageText', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, text: base + '\n❤️ ×' + fa(lc), reply_markup: cbButtons(pid) });
+            } catch (e) {}
             await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +۳ سکه\n🪙 موجودی: ' + fa(u.coins) });
             return new Response('ok');
           }
@@ -963,6 +979,11 @@ export default {
               try { await bale('forwardMessage', { chat_id: adminId, from_chat_id: cb.message.chat.id, message_id: cb.message.message_id }); } catch (e) {}
               await bale('sendMessage', { chat_id: adminId, text: '📬 پیشنهاد برای مجله از طرف ' + (cb.from.first_name || 'کاربر') });
             }
+            try {
+              const pidS = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
+              const base = String(cb.message.text || '').split('\n').filter(function(ln) { return ln.indexOf('⬆️') !== 0; }).join('\n');
+              await bale('editMessageText', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, text: base + '\n⬆️ پیشنهاد شد برای مجله', reply_markup: cbButtons(pidS) });
+            } catch (e) {}
             const todayS = new Date().toISOString().slice(0, 10);
             const cntKey = 'sugcnt:' + uid + ':' + todayS;
             const cnt = parseInt(await KV.get(cntKey) || '0');
@@ -1004,7 +1025,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v21 is running!');
+    return new Response('🎮 Bale Game Server v22 is running!');
   },
 
   async scheduled(event, env) {
