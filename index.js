@@ -399,8 +399,27 @@ async function mzHandle(update, env, ctx) {
     if (chat.type === 'channel') return true;
 
     if (text === '/admin') {
-      await KV.put('admin_id', String((msg.from && msg.from.id) || chat.id));
-      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ شناسه‌ات به‌عنوان ادمینِ تست ذخیره شد.' });
+      const cur = await KV.get('admin_id');
+      const uid3 = String((msg.from && msg.from.id) || chat.id);
+      if (!cur) {
+        await KV.put('admin_id', uid3);
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ شناسه‌ات به‌عنوان ادمینِ بات ذخیره شد.' });
+      } else if (cur === uid3) {
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ تو همین حالا ادمین بات هستی.' });
+      } else {
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⛔️ ادمین بات قبلاً ثبت شده؛ فقط ادمین فعلی می‌تونه با /انتقال_ادمین عوضش کنه.' });
+      }
+      return true;
+    }
+    if (text.indexOf('/انتقال_ادمین ') === 0) {
+      const cur2 = await KV.get('admin_id');
+      const uid4 = String((msg.from && msg.from.id) || chat.id);
+      if (cur2 === uid4) {
+        await KV.put('admin_id', text.split(' ')[1]);
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ ادمین بات منتقل شد.' });
+      } else {
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⛔️ فقط ادمین فعلی بات می‌تونه ادمین رو منتقل کنه.' });
+      }
       return true;
     }
     if (text.indexOf('/پست ') === 0 || text.indexOf('/post ') === 0) {
