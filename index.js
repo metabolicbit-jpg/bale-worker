@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v9: دیسپچر تک‌cron + سیلوی مقاوم) ==========
+// ========== میزگرد بله (v10: تزریق RSS + تازه‌سازی خودکار مخزن) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -40,23 +40,38 @@ async function mzLearnedHas(KV, col, w) {
   return l.indexOf(w) !== -1;
 }
 
+// ---------- سیلوی محتوا: بارگذاری + تازه‌سازی خودکار ۲۴ساعته ----------
 async function cbLoadBank(KV) {
   let bank = null;
   try { bank = await KV.get('cb_bank', 'json'); } catch (e) {}
-  if (bank && bank.sections) return bank;
+  const at = parseInt(await KV.get('cb_bank_at') || '0');
+  const fresh = Date.now() - at < 24 * 3600 * 1000;
+  if (fresh && bank && bank.sections) return bank;
   try {
     const r = await fetch(CB_URL);
-    bank = await r.json();
-    await KV.put('cb_bank', JSON.stringify(bank));
-    return bank;
-  } catch (e) { return null; }
+    const nb = await r.json();
+    if (nb && nb.sections) {
+      await KV.put('cb_bank', JSON.stringify(nb));
+      await KV.put('cb_bank_at', String(Date.now()));
+      return nb;
+    }
+  } catch (e) {}
+  return bank;
 }
 async function cbPost(env, sectionKey, opts) {
   const KV = env.GAME_KV;
   const CHANNEL = '@bale_game_center';
-  const bank = await cbLoadBank(KV);
   let text = null;
-  if (bank && bank.sections && bank.sections[sectionKey]) {
+  if (sectionKey === 'nabz') {
+    const queue = (await KV.get('cb_news', 'json')) || [];
+    if (queue.length) {
+      const it = queue.shift();
+      await KV.put('cb_news', JSON.stringify(queue));
+      text = '🌍 نبض روز\n\n' + it.t + '\n\n🔗 ' + (it.l || '') + '\n\n#نبض_روز';
+    }
+  }
+  const bank = await cbLoadBank(KV);
+  if (!text && bank && bank.sections && bank.sections[sectionKey]) {
     const sec = bank.sections[sectionKey];
     const items = sec.items || [];
     if (items.length) {
@@ -81,6 +96,49 @@ async function cbAnswer(env) {
   if (r && r.date === today && r.a) {
     try { await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: '✅ جواب معمای امروز: ' + r.a + '\n\nاگه درست حدس زدی، به خودت یه 🏆 بده! فردا معمای تازه.' }); } catch (e) {}
   }
+}
+
+// ---------- تزریق خبر زنده از RSS ----------
+function cbClean(s) {
+  return (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
+}
+function cbRssParse(xml, max) {
+  const out = [];
+  const re = /<item\b[\s\S]*?<\/item>/gi;
+  let m;
+  while ((m = re.exec(xml)) && out.length < max) {
+    const block = m[0];
+    const t = /<title[\s\S]*?>([\s\S]*?)<\/title>/i.exec(block);
+    const l = /<link[\s\S]*?>([\s\S]*?)<\/link>/i.exec(block);
+    if (t && l) out.push({ t: cbClean(t[1]), l: cbClean(l[1]) });
+  }
+  return out;
+}
+async function engineInject(env) {
+  const KV = env.GAME_KV;
+  const FEEDS = ['https://digiato.com/feed', 'https://www.zoomit.ir/feed'];
+  const seen = (await KV.get('cb_seen', 'json')) || [];
+  const queue = (await KV.get('cb_news', 'json')) || [];
+  let added = 0;
+  for (const f of FEEDS) {
+    if (added >= 3) break;
+    try {
+      const r = await fetch(f, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const xml = await r.text();
+      const items = cbRssParse(xml, 6);
+      for (const it of items) {
+        if (added >= 3) break;
+        if (!it.t || it.t.length < 15 || seen.indexOf(it.t) !== -1) continue;
+        seen.push(it.t);
+        queue.push({ t: it.t, l: it.l });
+        added++;
+      }
+    } catch (e) {}
+  }
+  while (seen.length > 300) seen.shift();
+  while (queue.length > 10) queue.shift();
+  await KV.put('cb_seen', JSON.stringify(seen));
+  await KV.put('cb_news', JSON.stringify(queue));
 }
 
 async function mzOnlineCheck(words) {
@@ -261,7 +319,7 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','','🥉','.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','','','.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
@@ -589,7 +647,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -873,7 +931,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v16 is running!');
+    return new Response('🎮 Bale Game Server v17 is running!');
   },
 
   async scheduled(event, env) {
@@ -883,6 +941,7 @@ export default {
       const hm = d.getUTCHours() * 60 + d.getUTCMinutes();
       const date = d.toISOString().slice(0, 10);
       const SLOTS = [
+        [390, 'inject'],
         [510, 'danestani'],
         [540, 'morning'],
         [660, 'tarfand'],
@@ -898,7 +957,8 @@ export default {
           if (!(await KV.get(key))) {
             await KV.put(key, '1', { expirationTtl: 86400 });
             try {
-              if (s[1] === 'morning') await engineMorning(env);
+              if (s[1] === 'inject') await engineInject(env);
+              else if (s[1] === 'morning') await engineMorning(env);
               else if (s[1] === 'evening') await engineEvening(env);
               else if (s[1] === 'moma') await cbPost(env, 'moma', { riddle: true });
               else if (s[1] === 'answer') await cbAnswer(env);
