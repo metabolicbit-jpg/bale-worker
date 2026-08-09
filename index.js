@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v19: دکمه زنده فقط برای پست‌های بات) ==========
+// ========== میزگرد بله (v20: دروازه عضویت + آیدی کامل) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -41,6 +41,12 @@ async function mzLoadBank(KV) {
 async function mzLearnedHas(KV, col, w) {
   const l = (await KV.get('learned:' + col, 'json')) || [];
   return l.indexOf(w) !== -1;
+}
+async function mzCheckMember(env, uid) {
+  try {
+    const r = await mzBale(env, 'getChatMember', { chat_id: '@bale_game_center', user_id: Number(uid) });
+    return !!(r && r.ok && ['member', 'administrator', 'creator'].includes(r.result.status));
+  } catch (e) { return false; }
 }
 
 async function cbLoadBank(KV) {
@@ -236,7 +242,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','','🥉','.','۵.'];
+    const medals = ['🥇','🥈','🥉','۴.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t, reply_markup: cbButtons('board:' + today) }); } catch (e) {}
@@ -321,7 +327,7 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','','🥉','.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
@@ -433,7 +439,9 @@ async function mzHandle(update, env, ctx) {
       return true;
     }
     if (text === '/ایدی' || text === '/id') {
-      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🆔 شناسهٔ عددی تو: ' + String((msg.from && msg.from.id) || chat.id) });
+      let t = '🆔 شناسهٔ عددی تو: ' + String((msg.from && msg.from.id) || chat.id);
+      if (isGroup) t += '\n🆔 شناسهٔ این گروه: ' + String(chat.id);
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: t });
       return true;
     }
     if (text === '/لاگ' || text === '/log') {
@@ -693,7 +701,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','','🥉','.','۵.'];
+      const medals = ['🥇','🥈','🥉','۴.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n'; });
       return t;
@@ -707,7 +715,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -930,6 +938,11 @@ export default {
         const chPost = update.channel_post || (update.message && update.message.chat && update.message.chat.type === 'channel' ? update.message : null);
         if (chPost) {
           try {
+            const chText = (chPost.text || '').trim();
+            if (chText === '/ایدی' || chText === '/id') {
+              await bale('sendMessage', { chat_id: chPost.chat.id, text: '🆔 شناسهٔ عددی این کانال: ' + String(chPost.chat.id) });
+              return new Response('ok');
+            }
             if (chPost.message_id && !(chPost.reply_markup && chPost.reply_markup.inline_keyboard)) {
               const adminId = await KV.get('admin_id');
               if (adminId) await mzBale(env, 'sendMessage', { chat_id: adminId, text: '📌 پستِ دستی کانال دکمهٔ زنده نمی‌گیره (محدودیت بله).\nبرای لایک/پیشنهاد، متن پست رو خصوصی همین‌جا بفرست با:\n/پست متن پست' });
@@ -974,6 +987,11 @@ export default {
                 ] });
                 await KV.put('cmds_v1', '1');
               }
+              const isMem = await mzCheckMember(env, uid);
+              if (!isMem) {
+                await bale('sendMessage', { chat_id: chat.id, text: 'سلام ' + ((update.message.from && update.message.from.first_name) || 'دوست') + ' عزیز 🌹\n\n⚠️ برای استفاده از امکانات ربات، ابتدا باید در کانال زیر عضو شوید:\n\nپس از عضویت، روی دکمه «✅ عضو شدم» کلیک کنید.', reply_markup: { inline_keyboard: [ [{ text: '📢 عضویت در کانال گیم‌سنتر', url: 'https://ble.ir/bale_game_center' }], [{ text: '✅ عضو شدم', callback_data: 'join_check' }] ] } });
+                return new Response('ok');
+              }
               let extra = '';
               if (u.daily.login !== today) { u.daily.login = today; u.coins += 30; await saveUser(uid, u); extra = '\n\n🎁 جایزه ورود امروز: +۳۰ سکه'; }
               await bale('sendMessage', { chat_id: chat.id, text: '🎮 به مرکز بازی خوش اومدی!' + extra + '\n\n🪙 سکه تو: ' + fa(u.coins), reply_markup: { inline_keyboard: [ [{ text: '🐤 پرنده‌پرش', url: GAME_URL + '?user=' + uid }, { text: '👤 سایه‌پرش', url: SHADOW_URL + '?user=' + uid }], [{ text: '🥚 آخرین تخم', url: EGG_URL + '?user=' + uid }, { text: '📝 نبرد واژه‌ها', url: ESM_URL + '?user=' + uid }], [{ text: '📋 کارها', callback_data: 'tasks' }, { text: '🛒 فروشگاه', callback_data: 'shop' }], [{ text: '🏆 رتبه‌بندی', callback_data: 'rank' }, { text: '🪙 سکه‌هام', callback_data: 'coins' }] ] } });
@@ -991,6 +1009,13 @@ export default {
           const data = cb.data || '';
           const u = await getUser(uid);
           let msg = null;
+          if (data === 'join_check') {
+            await bale('answerCallbackQuery', { callback_query_id: cb.id });
+            const isMem2 = await mzCheckMember(env, uid);
+            if (isMem2) await bale('sendMessage', { chat_id: uid, text: '🎉 عضویت تأیید شد! خوش اومدی.\nمنوی اصلی: /start' });
+            else await bale('sendMessage', { chat_id: uid, text: '❌ هنوز عضو نشدی! اول عضو کانال شو، بعد دوباره «✅ عضو شدم» رو بزن.' });
+            return new Response('ok');
+          }
           if (data.indexOf('cb_like:') === 0) {
             const pidU = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
@@ -1057,7 +1082,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v25 is running!');
+    return new Response('🎮 Bale Game Server v26 is running!');
   },
 
   async scheduled(event, env) {
