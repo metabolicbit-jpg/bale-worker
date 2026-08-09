@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v13: نسخهٔ کامل + تست لایک) ==========
+// ========== میزگرد بله (v14: دکمه‌های پاداش تعامل) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -21,6 +21,9 @@ const CB_EMERG = [
   '🎮 یادت باشه: هر شب ساعت ۲۱ میزگرد واژه‌ها در گروه! /نبرد',
   '🤖 پرامپت روز: «یه نکته بگو که ۹۰٪ آدم‌ها نمی‌دونن»'
 ];
+function cbButtons(pid) {
+  return { inline_keyboard: [ [{ text: '❤️ پسندیدم (+۳)', callback_data: 'cb_like:' + pid }, { text: '💡 پیشنهاد به مجله (+۵)', callback_data: 'cb_sug' }] ] };
+}
 
 function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
 function mzShort(s) { return (s || 'بازیکن').slice(0, 8); }
@@ -86,14 +89,14 @@ async function cbPost(env, sectionKey, opts) {
     }
   }
   if (!text) text = CB_EMERG[Math.floor(Math.random() * CB_EMERG.length)];
-  try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: text }); } catch (e) {}
+  try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: text, reply_markup: cbButtons(sectionKey + ':' + new Date().toISOString().slice(0, 10)) }); } catch (e) {}
 }
 async function cbAnswer(env) {
   const KV = env.GAME_KV;
   const r = (await KV.get('cb_riddle', 'json')) || null;
   const today = new Date().toISOString().slice(0, 10);
   if (r && r.date === today && r.a) {
-    try { await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: '✅ جواب معمای امروز: ' + r.a + '\n\nاگه درست حدس زدی، به خودت یه 🏆 بده! فردا معمای تازه.' }); } catch (e) {}
+    try { await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: '✅ جواب معمای امروز: ' + r.a + '\n\nاگه درست حدس زدی، به خودت یه 🏆 بده! فردا معمای تازه.', reply_markup: cbButtons('answer:' + today) }); } catch (e) {}
   }
 }
 
@@ -214,7 +217,7 @@ async function engineMorning(env) {
     const list = bank[col] || [];
     if (list.length) {
       const w = list[Math.floor(Math.random() * list.length)];
-      await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '📖 واژهٔ روز — ستون «' + col + '»\n\n«' + w + '»\n\n🎮 امشب توی میزگرد با همین کلمه امتیاز بگیر!' });
+      await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '📖 واژهٔ روز — ستون «' + col + '»\n\n«' + w + '»\n\n🎮 امشب توی میزگرد با همین کلمه امتیاز بگیر!', reply_markup: cbButtons('word:' + new Date().toISOString().slice(0, 10)) });
     }
   }
   const today = new Date().toISOString().slice(0, 10);
@@ -222,20 +225,21 @@ async function engineMorning(env) {
   let code = '';
   for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
   await KV.put('daily_code', JSON.stringify({ date: today, code: code }));
-  await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎁 مأموریت روز: امروز یه میزگرد بزن و حداقل ۳ ستون رو پر کن!\n\n🔑 کد جایزه: ' + code + '\n\nکد رو خصوصی به بات بفرست:\n/کد ' + code + '\n→ +۲۵ سکه' });
+  await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎁 مأموریت روز: امروز یه میزگرد بزن و حداقل ۳ ستون رو پر کن!\n\n🔑 کد جایزه: ' + code + '\n\nکد رو خصوصی به بات بفرست:\n/کد ' + code + '\n→ +۲۵ سکه', reply_markup: cbButtons('mission:' + today) });
 }
 
 async function engineEvening(env) {
   const KV = env.GAME_KV;
   const CHANNEL = '@bale_game_center';
-  try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎲 میزگرد امشب!\n\nساعت ۲۱:۳۰ پای میز حاضر باش؛ توی گروه «مرکز بازی» بنویس /نبرد\n\n👥 ble.ir/game_center_bale\n📖 راهنما: /rahnama' }); } catch (e) {}
+  const today = new Date().toISOString().slice(0, 10);
+  try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎲 میزگرد امشب!\n\nساعت ۲۱:۳۰ پای میز حاضر باش؛ توی گروه «مرکز بازی» بنویس /نبرد\n\n👥 ble.ir/game_center_bale\n📖 راهنما: /rahnama', reply_markup: cbButtons('invite:' + today) }); } catch (e) {}
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
     const medals = ['🥇','🥈','🥉','۴.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
-    try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t }); } catch (e) {}
+    try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t, reply_markup: cbButtons('board:' + today) }); } catch (e) {}
   }
 }
 
@@ -399,6 +403,14 @@ async function mzHandle(update, env, ctx) {
       await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ شناسه‌ات به‌عنوان ادمینِ تست ذخیره شد.' });
       return true;
     }
+    if (text === '/sugs' || text === '/پیشنهادها') {
+      const adminId = await KV.get('admin_id');
+      if (String((msg.from && msg.from.id) || chat.id) === adminId) {
+        const sugs = (await KV.get('cb_sugs', 'json')) || [];
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: sugs.length ? ('💡 پیشنهادهای کاربران:\n' + sugs.slice(0, 10).map(function(s) { return '• ' + s.name + ': ' + s.t; }).join('\n')) : 'صف پیشنهاد خالیه.' });
+      }
+      return true;
+    }
     if (text === '/لاگ' || text === '/log') {
       const log = (await KV.get('react_log', 'json')) || [];
       await mzBale(env, 'sendMessage', { chat_id: chat.id, text: log.length ? ('🧪 رویدادهای ثبت‌شده:\n' + JSON.stringify(log.slice(0, 6)).slice(0, 2800)) : 'هنوز رویداد غیرمعمولی نیومده.' });
@@ -466,6 +478,24 @@ async function mzHandle(update, env, ctx) {
 
     if (chat.type === 'private' && msg.text && msg.text.charAt(0) !== '/') {
       const uid = String(msg.from.id);
+      if (await KV.get('sugmode:' + uid)) {
+        try { await KV.delete('sugmode:' + uid); } catch (e) {}
+        const today2 = new Date().toISOString().slice(0, 10);
+        const cntKey = 'sugcnt:' + uid + ':' + today2;
+        const cnt = parseInt(await KV.get(cntKey) || '0');
+        const sugs = (await KV.get('cb_sugs', 'json')) || [];
+        sugs.unshift({ t: msg.text.slice(0, 300), name: (msg.from && msg.from.first_name) || 'کاربر', id: uid, date: today2 });
+        while (sugs.length > 50) sugs.pop();
+        await KV.put('cb_sugs', JSON.stringify(sugs));
+        if (cnt < 3) {
+          const u2 = await mzGetUser(KV, uid);
+          u2.coins += 5;
+          await KV.put('u:' + uid, JSON.stringify(u2));
+          await KV.put(cntKey, String(cnt + 1), { expirationTtl: 86400 });
+          await mzBale(env, 'sendMessage', { chat_id: uid, text: '💡 پیشنهادت ثبت شد! +۵ سکه 🎉' });
+        } else { await mzBale(env, 'sendMessage', { chat_id: uid, text: '💡 پیشنهادت ثبت شد (سهمیهٔ امروزت تموم شده).' }); }
+        return true;
+      }
       const g = await KV.get('mzu:' + uid);
       if (g) {
         const st = await KV.get('mz:' + g, 'json');
@@ -931,6 +961,23 @@ export default {
           const data = cb.data || '';
           const u = await getUser(uid);
           let msg = null;
+          if (data.indexOf('cb_like:') === 0) {
+            const pid = data.slice(8);
+            const lk = 'lk:' + uid + ':' + pid;
+            await bale('answerCallbackQuery', { callback_query_id: cb.id });
+            if (await KV.get(lk)) { await bale('sendMessage', { chat_id: uid, text: '❤️ قبلاً این پست رو پسندیدی!' }); return new Response('ok'); }
+            await KV.put(lk, '1', { expirationTtl: 86400 });
+            u.coins += 3;
+            await saveUser(uid, u);
+            await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +۳ سکه\n🪙 موجودی: ' + fa(u.coins) });
+            return new Response('ok');
+          }
+          if (data === 'cb_sug') {
+            await bale('answerCallbackQuery', { callback_query_id: cb.id });
+            await KV.put('sugmode:' + uid, '1', { expirationTtl: 600 });
+            await bale('sendMessage', { chat_id: uid, text: '💡 پیشنهادت رو همین‌جا بنویس و بفرست؛ اگه ثبت بشه +۵ سکه!' });
+            return new Response('ok');
+          }
           if (data === 'coins') msg = '🪙 سکه تو: ' + fa(u.coins);
           else if (data === 'rank') msg = await rankText();
           else if (data === 'tasks') { await bale('answerCallbackQuery', { callback_query_id: cb.id }); await sendTasks(chatId); return new Response('ok'); }
@@ -959,7 +1006,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v19 is running!');
+    return new Response('🎮 Bale Game Server v20 is running!');
   },
 
   async scheduled(event, env) {
