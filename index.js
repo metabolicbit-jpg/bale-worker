@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v18: حالت تست آزاد) ==========
+// ========== میزگرد بله (v19: دکمه زنده فقط برای پست‌های بات) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -236,7 +236,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','','','.','۵.'];
+    const medals = ['🥇','','🥉','.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t, reply_markup: cbButtons('board:' + today) }); } catch (e) {}
@@ -409,7 +409,7 @@ async function mzHandle(update, env, ctx) {
       if (uid2 === adminId) {
         const body2 = text.slice(text.indexOf(' ') + 1);
         const r = await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: body2, reply_markup: cbButtons('apost:' + Date.now()) });
-        await mzBale(env, 'sendMessage', { chat_id: uid2, text: (r && r.ok) ? '📢 پست با دکمه‌های تعامل منتشر شد!' : '❌ انتشار ناموفق بود.' });
+        await mzBale(env, 'sendMessage', { chat_id: uid2, text: (r && r.ok) ? '📢 پست با دکمه‌های زنده منتشر شد!' : '❌ انتشار ناموفق بود.' });
       } else { await mzBale(env, 'sendMessage', { chat_id: uid2, text: 'فقط ادمین می‌تونه پست بذاره.' }); }
       return true;
     }
@@ -670,7 +670,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','','','.','۵.'];
+      const medals = ['🥇','','🥉','.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n'; });
       return t;
@@ -684,7 +684,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -908,8 +908,8 @@ export default {
         if (chPost) {
           try {
             if (chPost.message_id && !(chPost.reply_markup && chPost.reply_markup.inline_keyboard)) {
-              const pid = 'post:' + chPost.chat.id + ':' + chPost.message_id;
-              await bale('editMessageReplyMarkup', { chat_id: chPost.chat.id, message_id: chPost.message_id, reply_markup: cbButtons(pid) });
+              const adminId = await KV.get('admin_id');
+              if (adminId) await mzBale(env, 'sendMessage', { chat_id: adminId, text: '📌 پستِ دستی کانال دکمهٔ زنده نمی‌گیره (محدودیت بله).\nبرای لایک/پیشنهاد، متن پست رو خصوصی همین‌جا بفرست با:\n/پست متن پست' });
             }
           } catch (e) {}
           return new Response('ok');
@@ -1034,7 +1034,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v24 is running!');
+    return new Response('🎮 Bale Game Server v25 is running!');
   },
 
   async scheduled(event, env) {
