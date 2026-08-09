@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v17: نشانگر لایک/پیشنهاد روی دکمه‌ها) ==========
+// ========== میزگرد بله (v18: حالت تست آزاد) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -217,7 +217,7 @@ async function engineMorning(env) {
     const list = bank[col] || [];
     if (list.length) {
       const w = list[Math.floor(Math.random() * list.length)];
-      await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '📖 واژهٔ روز — ستون «' + col + '»\n\n«' + w + '»\n\n🎮 امشب توی میزگرد با همین کلمه امتیاز بگیر!', reply_markup: cbButtons('word:' + new Date().toISOString().slice(0, 10)) });
+      await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '📖 واژه روز — ستون «' + col + '»\n\n«' + w + '»\n\n🎮 امشب توی میزگرد با همین کلمه امتیاز بگیر!', reply_markup: cbButtons('word:' + new Date().toISOString().slice(0, 10)) });
     }
   }
   const today = new Date().toISOString().slice(0, 10);
@@ -236,7 +236,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','','🥉','.','۵.'];
+    const medals = ['🥇','','','.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t, reply_markup: cbButtons('board:' + today) }); } catch (e) {}
@@ -415,7 +415,8 @@ async function mzHandle(update, env, ctx) {
     }
     if (text === '/لاگ' || text === '/log') {
       const log = (await KV.get('react_log', 'json')) || [];
-      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: log.length ? ('🧪 رویدادهای ثبت‌شده:\n' + JSON.stringify(log.slice(0, 6)).slice(0, 2800)) : 'هنوز رویداد غیرمعمولی نیومده.' });
+      const elog = (await KV.get('edit_log', 'json')) || [];
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: (elog.length ? ('🛠️ ویرایش دکمه‌ها:\n' + JSON.stringify(elog).slice(0, 1400) + '\n\n') : '') + (log.length ? ('🧪 رویدادها:\n' + JSON.stringify(log.slice(0, 3)).slice(0, 1000)) : '🧪 رویدادی نیست.') });
       return true;
     }
 
@@ -969,38 +970,40 @@ export default {
           let msg = null;
           if (data.indexOf('cb_like:') === 0) {
             const pidU = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
-            const lk = 'lk:' + uid + ':' + pidU;
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
-            if (await KV.get(lk)) { await bale('sendMessage', { chat_id: uid, text: '❤️ قبلاً این پست رو پسندیدی!' }); return new Response('ok'); }
-            await KV.put(lk, '1', { expirationTtl: 86400 });
             u.coins += 3;
             await saveUser(uid, u);
             const stp = await cbPostState(pidU, 'like');
-            try { await bale('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: cbMarkedButtons(stp, pidU) }); } catch (e) {}
-            await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +۳ سکه\n🪙 موجودی: ' + fa(u.coins) });
+            const elog = (await KV.get('edit_log', 'json')) || [];
+            try {
+              const rM = await bale('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: cbMarkedButtons(stp, pidU) });
+              elog.unshift({ m: 'like', ok: !!(rM && rM.ok), err: (rM && rM.description) || '' });
+            } catch (e) { elog.unshift({ m: 'like', err: String(e && e.message) }); }
+            while (elog.length > 8) elog.pop();
+            await KV.put('edit_log', JSON.stringify(elog));
+            await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +۳ سکه\n👍 مجموع لایک این پست: ' + fa(stp.likes) + '\n🪙 موجودی: ' + fa(u.coins) });
             return new Response('ok');
           }
           if (data === 'cb_sug') {
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
             const pidU = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
             const adminId = await KV.get('admin_id');
+            let fwdOk = false;
             if (adminId) {
-              try { await bale('forwardMessage', { chat_id: adminId, from_chat_id: cb.message.chat.id, message_id: cb.message.message_id }); } catch (e) {}
-              await bale('sendMessage', { chat_id: adminId, text: '📬 پیشنهاد برای مجله از طرف ' + (cb.from.first_name || 'کاربر') });
+              try { const rf = await bale('forwardMessage', { chat_id: adminId, from_chat_id: cb.message.chat.id, message_id: cb.message.message_id }); fwdOk = !!(rf && rf.ok); } catch (e) {}
+              if (fwdOk) await bale('sendMessage', { chat_id: adminId, text: '📬 پیشنهاد برای مجله از طرف ' + (cb.from.first_name || 'کاربر') });
             }
             const stp2 = await cbPostState(pidU, 'sug');
-            try { await bale('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: cbMarkedButtons(stp2, pidU) }); } catch (e) {}
-            const todayS = new Date().toISOString().slice(0, 10);
-            const cntKey = 'sugcnt:' + uid + ':' + todayS;
-            const cnt = parseInt(await KV.get(cntKey) || '0');
-            if (cnt < 3) {
-              u.coins += 5;
-              await saveUser(uid, u);
-              await KV.put(cntKey, String(cnt + 1), { expirationTtl: 86400 });
-              await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت برای مجله ارسال شد! +۵ سکه\n🪙 موجودی: ' + fa(u.coins) });
-            } else {
-              await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت ارسال شد (سهمیهٔ امروزت تموم شده).' });
-            }
+            const elog2 = (await KV.get('edit_log', 'json')) || [];
+            try {
+              const rM2 = await bale('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: cbMarkedButtons(stp2, pidU) });
+              elog2.unshift({ m: 'sug', ok: !!(rM2 && rM2.ok), err: (rM2 && rM2.description) || '' });
+            } catch (e) { elog2.unshift({ m: 'sug', err: String(e && e.message) }); }
+            while (elog2.length > 8) elog2.pop();
+            await KV.put('edit_log', JSON.stringify(elog2));
+            u.coins += 5;
+            await saveUser(uid, u);
+            await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت ' + (fwdOk ? 'به مجله رسید ✅' : 'ثبت شد') + '! +۵ سکه\n🪙 موجودی: ' + fa(u.coins) });
             return new Response('ok');
           }
           if (data === 'coins') msg = '🪙 سکه تو: ' + fa(u.coins);
@@ -1015,7 +1018,7 @@ export default {
             const isMember = st.ok && ['member', 'administrator', 'creator'].includes(st.result.status);
             if (!isMember) msg = '❌ هنوز عضو نشدی! اول عضو ' + target + ' بشو، بعد دوباره بزن.';
             else if (u.claimed[key]) msg = 'این جایزه رو قبلاً گرفتی!';
-            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
+            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
           }
           else if (data.startsWith('buy_')) {
             const item = SHOP.find(function(i) { return i.id === data.slice(4); });
@@ -1031,7 +1034,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v23 is running!');
+    return new Response('🎮 Bale Game Server v24 is running!');
   },
 
   async scheduled(event, env) {
