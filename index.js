@@ -432,7 +432,10 @@ async function mzHandle(update, env, ctx) {
       } else { await mzBale(env, 'sendMessage', { chat_id: uid2, text: 'فقط ادمین می‌تونه پست بذاره.' }); }
       return true;
     }
-    if (text === '/لاگ' || text === '/log') {
+    if (text === '/ایدی' || text === '/id') {
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🆔 شناسهٔ عددی تو: ' + String((msg.from && msg.from.id) || chat.id) });
+      return true;
+    }
       const log = (await KV.get('react_log', 'json')) || [];
       const elog = (await KV.get('edit_log', 'json')) || [];
       await mzBale(env, 'sendMessage', { chat_id: chat.id, text: (elog.length ? ('🛠️ ویرایش دکمه‌ها:\n' + JSON.stringify(elog).slice(0, 1400) + '\n\n') : '') + (log.length ? ('🧪 رویدادها:\n' + JSON.stringify(log.slice(0, 3)).slice(0, 1000)) : '🧪 رویدادی نیست.') });
