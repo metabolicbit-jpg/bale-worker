@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v20: دروازه عضویت + آیدی کامل) ==========
+// ========== میزگرد بله (v21: دکمه شروع کن + منوی کامل) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -731,7 +731,8 @@ export default {
       const html = '<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:sans-serif;background:#0f2027;color:#fff;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}button{font-size:22px;padding:14px 40px;border:0;border-radius:14px;background:#22c55e;color:#fff}</style></head><body><button id="b">🚀 شروع کن</button><script>var B=window.Telegram&&window.Telegram.WebApp;try{B&&B.ready&&B.ready()}catch(e){}function go(){try{if(B&&B.sendData){B.sendData("menu_start");B.close();return}}catch(e){}location.href="https://ble.ir/game_balebot"}document.getElementById("b").onclick=go;try{if(B&&B.sendData){B.sendData("menu_start");B.close()}}catch(e){}</script></body></html>';
       return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
-    if (url.pathname === '/api/submit') { if (url.pathname === '/api/submit') {
+
+    if (url.pathname === '/api/submit') {
       if (request.method === 'OPTIONS') return json({ ok: true });
       if (request.method === 'POST') {
         try {
@@ -1035,7 +1036,8 @@ export default {
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
             await bale('sendMessage', { chat_id: chatId, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش، سایه‌پرش، آخرین تخم\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — توی گروه بنویس /نبرد\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE });
             return new Response('ok');
-          } if (data === 'join_check') {
+          }
+          else if (data === 'join_check') {
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
             const isMem2 = await mzCheckMember(env, uid);
             if (isMem2) await bale('sendMessage', { chat_id: uid, text: '🎉 عضویت تأیید شد! خوش اومدی.\nمنوی اصلی: /start' });
@@ -1108,7 +1110,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v26 is running!');
+    return new Response('🎮 Bale Game Server v27 is running!');
   },
 
   async scheduled(event, env) {
