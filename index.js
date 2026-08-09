@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v16: نشانگر لایک/پیشنهاد روی پست + انتشار با دکمه) ==========
+// ========== میزگرد بله (v17: نشانگر لایک/پیشنهاد روی دکمه‌ها) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -11,7 +11,7 @@ const MZ_CAT_KEYS = {
 const MZ_ROOTS = { 'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'] };
 const MZ_TAUNTS = ['به‌به! چه میزی داغ بود! 😎','این دور ترکوند! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
 const MZ_COUNTDOWN = 20;
-const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: توی گروه بنویس /نبرد\n۲)  عضوها با دکمهٔ «نشستن پای میز» می‌شن (۲ تا ۸ نفر)\n۳) ⚔️ میزبان با «شروع نبرد» آغاز می‌کنه (شمارش معکوس ۲۰ ثانیه)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵)  نتیجه عمومی + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها پیش‌بینی می‌کنن کی قهرمانه\n۷) ️ کلمات ردشده به دادگاه میز میرن؛ با نصف+۱ رأی مثبت، تأیید و به فرهنگ‌نامه اضافه میشن\n۸) ️ بستن میز: /لغو (فقط میزبان)';
+const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: توی گروه بنویس /نبرد\n۲)  عضوها با دکمهٔ «نشستن پای میز» می‌شن (۲ تا ۸ نفر)\n۳) ️ میزبان با «شروع نبرد» آغاز می‌کنه (شمارش معکوس ۲۰ ثانیه)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵)  نتیجه عمومی + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها پیش‌بینی می‌کنن کی قهرمانه\n۷) ️ کلمات ردشده به دادگاه میز میرن؛ با نصف+۱ رأی مثبت، تأیید و به فرهنگ‌نامه اضافه میشن\n۸) ️ بستن میز: /لغو (فقط میزبان)';
 
 const CB_URL = 'https://metabolicbit-jpg.github.io/bale-game/content.json';
 const CB_EMERG = [
@@ -644,6 +644,19 @@ export default {
       return res.json();
     }
     function fa(n) { const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']; return String(n).replace(/\d/g, function(d) { return p[d]; }); }
+    async function cbPostState(pid, upd) {
+      const st = (await KV.get('postst:' + pid, 'json')) || { likes: 0, sug: 0 };
+      if (upd === 'like') st.likes += 1;
+      if (upd === 'sug') st.sug = 1;
+      await KV.put('postst:' + pid, JSON.stringify(st));
+      return st;
+    }
+    function cbMarkedButtons(st, pid) {
+      return { inline_keyboard: [ [
+        { text: (st.likes > 0 ? '❤️ پسندیده شد ×' + fa(st.likes) : '❤️ پسندیدم (+۳)'), callback_data: 'cb_like:' + pid },
+        { text: (st.sug ? '⬆️ پیشنهاد شد برای مجله' : '💡 پیشنهاد به مجله (+۵)'), callback_data: 'cb_sug' }
+      ] ] };
+    }
     function json(obj) {
       return new Response(JSON.stringify(obj), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } });
     }
@@ -656,7 +669,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','','🥉','.','۵.'];
+      const medals = ['🥇','','','.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n'; });
       return t;
@@ -955,35 +968,28 @@ export default {
           const u = await getUser(uid);
           let msg = null;
           if (data.indexOf('cb_like:') === 0) {
-            const pid = data.slice(8);
-            const lk = 'lk:' + uid + ':' + pid;
+            const pidU = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
+            const lk = 'lk:' + uid + ':' + pidU;
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
             if (await KV.get(lk)) { await bale('sendMessage', { chat_id: uid, text: '❤️ قبلاً این پست رو پسندیدی!' }); return new Response('ok'); }
             await KV.put(lk, '1', { expirationTtl: 86400 });
             u.coins += 3;
             await saveUser(uid, u);
-            try { await bale('setMessageReaction', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, emoji: '❤️' }); } catch (e) {}
-            try {
-              const lc = parseInt(await KV.get('likect:' + pid) || '0') + 1;
-              await KV.put('likect:' + pid, String(lc));
-              const base = String(cb.message.text || '').split('\n').filter(function(ln) { return ln.indexOf('❤️ ×') !== 0; }).join('\n');
-              await bale('editMessageText', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, text: base + '\n❤️ ×' + fa(lc), reply_markup: cbButtons(pid) });
-            } catch (e) {}
+            const stp = await cbPostState(pidU, 'like');
+            try { await bale('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: cbMarkedButtons(stp, pidU) }); } catch (e) {}
             await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +۳ سکه\n🪙 موجودی: ' + fa(u.coins) });
             return new Response('ok');
           }
           if (data === 'cb_sug') {
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
+            const pidU = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
             const adminId = await KV.get('admin_id');
             if (adminId) {
               try { await bale('forwardMessage', { chat_id: adminId, from_chat_id: cb.message.chat.id, message_id: cb.message.message_id }); } catch (e) {}
               await bale('sendMessage', { chat_id: adminId, text: '📬 پیشنهاد برای مجله از طرف ' + (cb.from.first_name || 'کاربر') });
             }
-            try {
-              const pidS = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
-              const base = String(cb.message.text || '').split('\n').filter(function(ln) { return ln.indexOf('⬆️') !== 0; }).join('\n');
-              await bale('editMessageText', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, text: base + '\n⬆️ پیشنهاد شد برای مجله', reply_markup: cbButtons(pidS) });
-            } catch (e) {}
+            const stp2 = await cbPostState(pidU, 'sug');
+            try { await bale('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: cbMarkedButtons(stp2, pidU) }); } catch (e) {}
             const todayS = new Date().toISOString().slice(0, 10);
             const cntKey = 'sugcnt:' + uid + ':' + todayS;
             const cnt = parseInt(await KV.get(cntKey) || '0');
@@ -1009,7 +1015,7 @@ export default {
             const isMember = st.ok && ['member', 'administrator', 'creator'].includes(st.result.status);
             if (!isMember) msg = '❌ هنوز عضو نشدی! اول عضو ' + target + ' بشو، بعد دوباره بزن.';
             else if (u.claimed[key]) msg = 'این جایزه رو قبلاً گرفتی!';
-            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
+            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
           }
           else if (data.startsWith('buy_')) {
             const item = SHOP.find(function(i) { return i.id === data.slice(4); });
@@ -1025,7 +1031,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v22 is running!');
+    return new Response('🎮 Bale Game Server v23 is running!');
   },
 
   async scheduled(event, env) {
