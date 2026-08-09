@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v10: تزریق RSS + تازه‌سازی خودکار مخزن) ==========
+// ========== میزگرد بله (v13: نسخهٔ کامل + تست لایک) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -40,7 +40,6 @@ async function mzLearnedHas(KV, col, w) {
   return l.indexOf(w) !== -1;
 }
 
-// ---------- سیلوی محتوا: بارگذاری + تازه‌سازی خودکار ۲۴ساعته ----------
 async function cbLoadBank(KV) {
   let bank = null;
   try { bank = await KV.get('cb_bank', 'json'); } catch (e) {}
@@ -98,7 +97,6 @@ async function cbAnswer(env) {
   }
 }
 
-// ---------- تزریق خبر زنده از RSS ----------
 function cbClean(s) {
   return (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
 }
@@ -234,7 +232,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','','🥉','.','۵.'];
+    const medals = ['🥇','🥈','🥉','۴.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t }); } catch (e) {}
@@ -319,7 +317,7 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','','','.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
@@ -395,6 +393,17 @@ async function mzHandle(update, env, ctx) {
     const isGroup = chat.type === 'group' || chat.type === 'supergroup';
 
     if (chat.type === 'channel') return true;
+
+    if (text === '/admin') {
+      await KV.put('admin_id', String((msg.from && msg.from.id) || chat.id));
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ شناسه‌ات به‌عنوان ادمینِ تست ذخیره شد.' });
+      return true;
+    }
+    if (text === '/لاگ' || text === '/log') {
+      const log = (await KV.get('react_log', 'json')) || [];
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: log.length ? ('🧪 رویدادهای ثبت‌شده:\n' + JSON.stringify(log.slice(0, 6)).slice(0, 2800)) : 'هنوز رویداد غیرمعمولی نیومده.' });
+      return true;
+    }
 
     if (text === '/راهنما' || text === '/rahnama') { await mzBale(env, 'sendMessage', { chat_id: chat.id, text: MZ_GUIDE }); return true; }
     if (text.indexOf('/کد') === 0 || text.indexOf('/code') === 0) {
@@ -633,7 +642,7 @@ export default {
     async function rankText() {
       const lb = (await KV.get('lb', 'json')) || [];
       if (lb.length === 0) return '🏆 هنوز کسی توی رتبه‌بندی نیست! اولین نفر باش!';
-      const medals = ['🥇','','🥉','.','۵.'];
+      const medals = ['🥇','🥈','🥉','۴.','۵.'];
       let t = '🏆 برترین‌های مرکز بازی:\n\n';
       lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — رکورد: ' + fa(e.best) + '\n'; });
       return t;
@@ -647,7 +656,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n📅 ورود روزانه: +۳۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -868,6 +877,25 @@ export default {
       try {
         const update = await request.json();
         if (update.channel_post) return new Response('ok');
+        try {
+          const keys = Object.keys(update || {});
+          const isReact = keys.some(function(k) { return k.indexOf('reaction') !== -1; });
+          if (isReact) {
+            const log = (await KV.get('react_log', 'json')) || [];
+            log.unshift({ t: Date.now(), keys: keys, data: JSON.stringify(update).slice(0, 700) });
+            while (log.length > 30) log.pop();
+            await KV.put('react_log', JSON.stringify(log));
+            const adminId = await KV.get('admin_id');
+            if (adminId) await mzBale(env, 'sendMessage', { chat_id: adminId, text: '🧪 رویداد لایک رسید!\nکلیدها: ' + keys.join(', ') + '\n' + JSON.stringify(update).slice(0, 350) });
+            return new Response('ok');
+          }
+          if (!update.message && !update.callback_query) {
+            const log2 = (await KV.get('react_log', 'json')) || [];
+            log2.unshift({ t: Date.now(), keys: keys });
+            while (log2.length > 30) log2.pop();
+            await KV.put('react_log', JSON.stringify(log2));
+          }
+        } catch (e) {}
         if (await mzHandle(update, env, ctx)) return new Response('ok');
         if (update.message) {
           const text = update.message.text || '';
@@ -915,7 +943,7 @@ export default {
             const isMember = st.ok && ['member', 'administrator', 'creator'].includes(st.result.status);
             if (!isMember) msg = '❌ هنوز عضو نشدی! اول عضو ' + target + ' بشو، بعد دوباره بزن.';
             else if (u.claimed[key]) msg = 'این جایزه رو قبلاً گرفتی!';
-            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
+            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
           }
           else if (data.startsWith('buy_')) {
             const item = SHOP.find(function(i) { return i.id === data.slice(4); });
@@ -931,7 +959,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v17 is running!');
+    return new Response('🎮 Bale Game Server v19 is running!');
   },
 
   async scheduled(event, env) {
