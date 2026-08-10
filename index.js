@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v23: پیام‌های فارسی مرتب + دژ شش‌لایه) ==========
+// ========== میزگرد بله (v24: محدودیت‌ها + سوییچ تست + تسترها) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -11,14 +11,23 @@ const MZ_CAT_KEYS = {
 const MZ_ROOTS = { 'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'] };
 const MZ_TAUNTS = ['به‌به! چه میز داغی بود! 😎','این دور ترکوندی! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
 const MZ_COUNTDOWN = 20;
-const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: در گروه بنویس /نبرد\n۲) 🪑 عضوها با دکمهٔ «نشستن پای میز» join می‌شن (۲ تا ۸ نفر)\n۳) ️ میزبان با «شروع نبرد» مسابقه رو آغاز می‌کنه (۲۰ ثانیه شمارش معکوس)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵) 🏁 نتیجه به‌صورت عمومی اعلام می‌شه + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها می‌تونن قهرمان رو پیش‌بینی کنن\n۷) 🏛️ کلمات ردشده به «دادگاه میز» میرن؛ با رأی نصف+۱ به فرهنگ‌نامه اضافه می‌شن\n۸) 🗑️ بستن میز: /لغو (فقط میزبان)';
-const MZ_RULES = '📜 قوانین گروه مرکز بازی\n\n۱) 🏟️ سالن مسابقه قفله؛ گفتگوی آزاد فقط در «زنگ تفریح»\n۲) ⚠️ ارسال لینک، فوروارد و تبلیغ = حذف پیام + اخطار\n۳) 🚫 کلام نامناسب و بی‌احترامی = حذف پیام + اخطار\n۴) 🔇 پس از ۳ اخطار = یک ساعت سکوت\n۵) ⛔️ پس از ۵ اخطار = حذف از گروه\n۶) 🕘 میزگرد واژه‌ها هر شب ساعت ۲۱:۳۰ به‌صورت خودکار\n۷) ✍️ جواب‌های مسابقه فقط خصوصی به بات\n۸)  برای گزارش تخلف، پیام متخلف رو به بات فوروارد کن\n۹) ❤️ احترام متقابل = خط قرمز ما';
+const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: در گروه بنویس /نبرد\n۲) 🪑 عضوها با دکمهٔ «نشستن پای میز» join می‌شن (۲ تا ۸ نفر)\n۳) ️ میزبان با «شروع نبرد» مسابقه رو آغاز می‌کنه (۲۰ ثانیه شمارش معکوس)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵) 🏁 نتیجه به‌صورت عمومی اعلام می‌شه + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها می‌تونن قهرمان رو پیش‌بینی کنن\n۷) ️ کلمات ردشده به «دادگاه میز» میرن؛ با رأی نصف+۱ به فرهنگ‌نامه اضافه می‌شن\n۸) ️ بستن میز: /لغو (فقط میزبان)';
+const MZ_RULES = '📜 قوانین گروه مرکز بازی\n\n۱) 🏟️ سالن مسابقه قفله؛ گفتگوی آزاد فقط در «زنگ تفریح»\n۲) ⚠️ ارسال لینک، فوروارد و تبلیغ = حذف پیام + اخطار\n۳)  کلام نامناسب و بی‌احترامی = حذف پیام + اخطار\n۴) 🔇 پس از ۳ اخطار = یک ساعت سکوت\n۵) ️ پس از ۵ اخطار = حذف از گروه\n۶) 🕘 میزگرد واژه‌ها هر شب ساعت ۲۱:۳۰ به‌صورت خودکار\n۷) ✍️ جواب‌های مسابقه فقط خصوصی به بات\n۸)  برای گزارش تخلف، پیام متخلف رو به بات فوروارد کن\n۹) ❤️ احترام متقابل = خط قرمز ما';
 const MOD_BW = ['کیر','کون','جنده','حرومی','بیناموس','بی‌ناموس','ناموست','گوه','لاشی','خرکس'];
+const TEST_MODE = false;
+const TESTERS = [];
 
 function cbButtons(pid) {
   return { inline_keyboard: [ [{ text: '❤️ پسندیدم (+۳)', callback_data: 'cb_like:' + pid }, { text: '💡 پیشنهاد به مجله (+۵)', callback_data: 'cb_sug' }] ] };
 }
 
+async function isTester(KV, uid) {
+  if (TEST_MODE) return true;
+  if (TESTERS.indexOf(uid) !== -1) return true;
+  if (uid === (await KV.get('admin_id'))) return true;
+  const arr = (await KV.get('testers', 'json')) || [];
+  return arr.indexOf(uid) !== -1;
+}
 function faP(n) { const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']; return String(n).replace(/\d/g, function(d) { return p[d]; }); }
 function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
 function mzShort(s) { return (s || 'بازیکن').slice(0, 8); }
@@ -108,6 +117,15 @@ async function cbAnswer(env) {
     try { await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: '✅ جواب معمای امروز: ' + r.a + '\n\nاگه درست حدس زدی، به خودت یه 🏆 بده! فردا معمای تازه.', reply_markup: cbButtons('answer:' + today) }); } catch (e) {}
   }
 }
+
+const CB_EMERG = [
+  '🧠 آیا می‌دانستید؟ مغز شما حتی وقتی می‌خندید هم در حال یادگیریه! 😄',
+  '❓ معما: چه چیزی مال توئه ولی بقیه بیشتر استفاده‌ش می‌کنن؟ (جواب: اسمت!)',
+  '💡 ترفند: قانون ۲ دقیقه — اگه کاری کمتر از ۲ دقیقه‌ست، همین حالا انجامش بده!',
+  '🎮 یادت باشه: هر شب ساعت ۲۱ میزگرد واژه‌ها در گروه! /نبرد',
+  '🤖 پرامپت روز: «یه نکته بگو که ۹۰٪ آدم‌ها نمی‌دونن»'
+];
+const CB_URL = 'https://metabolicbit-jpg.github.io/bale-game/content.json';
 
 function cbClean(s) {
   return (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
@@ -245,7 +263,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','🥈','🥉','۴.','۵.'];
+    const medals = ['🥇','','🥉','۴.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t, reply_markup: cbButtons('board:' + today) }); } catch (e) {}
@@ -361,7 +379,7 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','','🥉','۴.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + faP(r.score) + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
@@ -470,6 +488,7 @@ async function mzHandle(update, env, ctx) {
       }
       if (!priv) {
         const recessOn = (await KV.get('recess')) === '1';
+        const testerG = await isTester(KV, uidG);
         const allowedCmd = /^\/(نبرد|nabard|لغو|laghv|rahnama|راهنما|کد|code|start|ایدی|id|قوانین|rules)\b/.test(text);
         const hasLink = /https?:\/\/|t\.me\/|ble\.ir\//i.test(msg.text || '');
         const isFwd = !!(msg.forward_from || msg.forward_from_chat || msg.forward_sender_name);
@@ -487,7 +506,7 @@ async function mzHandle(update, env, ctx) {
         else if (bad) violation = 'کلام نامناسب';
         else if (hasMedia) violation = 'رسانهٔ غیرمجاز';
         else if (farr.length >= 5) violation = 'اسپم';
-        else if (!recessOn && !allowedCmd) violation = 'پیام خارج از چارچوب';
+        else if (!recessOn && !allowedCmd && !testerG) violation = 'پیام خارج از چارچوب';
         if (violation) {
           try { await mzBale(env, 'deleteMessage', { chat_id: chat.id, message_id: msg.message_id }); } catch (e) {}
           await modCount(KV, 'del');
@@ -547,6 +566,33 @@ async function mzHandle(update, env, ctx) {
       if (String((msg.from && msg.from.id) || chat.id) === (await KV.get('admin_id'))) {
         const arr = (await KV.get('mod_words', 'json')) || [];
         await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '📛 فهرست سیاه سفارشی:\n' + (arr.length ? arr.join('، ') : 'خالی') });
+      }
+      return true;
+    }
+    if (text.indexOf('/افزودن_تستر ') === 0) {
+      if (String((msg.from && msg.from.id) || chat.id) === (await KV.get('admin_id'))) {
+        const id = text.split(' ')[1];
+        const arr = (await KV.get('testers', 'json')) || [];
+        if (id && arr.indexOf(id) === -1) arr.push(id);
+        await KV.put('testers', JSON.stringify(arr));
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ اکانت تست اضافه شد (' + faP(arr.length) + ' مورد).' });
+      }
+      return true;
+    }
+    if (text.indexOf('/حذف_تستر ') === 0) {
+      if (String((msg.from && msg.from.id) || chat.id) === (await KV.get('admin_id'))) {
+        const id = text.split(' ')[1];
+        let arr = (await KV.get('testers', 'json')) || [];
+        arr = arr.filter(function(x) { return x !== id; });
+        await KV.put('testers', JSON.stringify(arr));
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🗑️ اکانت تست حذف شد (' + faP(arr.length) + ' مورد مونده).' });
+      }
+      return true;
+    }
+    if (text === '/تسترها') {
+      if (String((msg.from && msg.from.id) || chat.id) === (await KV.get('admin_id'))) {
+        const arr = (await KV.get('testers', 'json')) || [];
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🧪 اکانت‌های تست:\n' + (arr.length ? arr.join('، ') : 'خالی (ادمین همیشه تستره)') });
       }
       return true;
     }
@@ -1220,6 +1266,10 @@ export default {
           if (data.indexOf('cb_like:') === 0) {
             const pidU = 'post:' + cb.message.chat.id + ':' + cb.message.message_id;
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
+            const tester = await isTester(KV, uid);
+            const lk = 'lk:' + uid + ':' + pidU;
+            if (!tester && (await KV.get(lk))) { await bale('sendMessage', { chat_id: uid, text: '❤️ قبلاً این پست رو پسندیدی!' }); return new Response('ok'); }
+            await KV.put(lk, '1', { expirationTtl: 86400 });
             u.coins += 3;
             await saveUser(uid, u);
             const stp = await cbPostState(pidU, 'like');
@@ -1250,9 +1300,18 @@ export default {
             } catch (e) { elog2.unshift({ m: 'sug', err: String(e && e.message) }); }
             while (elog2.length > 8) elog2.pop();
             await KV.put('edit_log', JSON.stringify(elog2));
-            u.coins += 5;
-            await saveUser(uid, u);
-            await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت ' + (fwdOk ? 'به مجله رسید ✅' : 'ثبت شد') + '! +' + fa(5) + ' سکه\n🪙 موجودی: ' + fa(u.coins) });
+            const tester = await isTester(KV, uid);
+            const todayS = new Date().toISOString().slice(0, 10);
+            const cntKey = 'sugcnt:' + uid + ':' + todayS;
+            const cnt = parseInt(await KV.get(cntKey) || '0');
+            if (!tester) await KV.put(cntKey, String(cnt + 1), { expirationTtl: 86400 });
+            if (tester || cnt < 3) {
+              u.coins += 5;
+              await saveUser(uid, u);
+              await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت ' + (fwdOk ? 'به مجله رسید ✅' : 'ثبت شد') + '! +' + fa(5) + ' سکه\n🪙 موجودی: ' + fa(u.coins) });
+            } else {
+              await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت ' + (fwdOk ? 'به مجله رسید ✅' : 'ثبت شد') + '؛ ولی سهمیهٔ امروزت (' + fa(3) + ' مورد) تموم شده و سکه تعلق نمی‌گیره.' });
+            }
             return new Response('ok');
           }
           if (data === 'coins') msg = '🪙 سکه تو: ' + fa(u.coins);
@@ -1283,7 +1342,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v29 is running!');
+    return new Response('🎮 Bale Game Server v30 is running!');
   },
 
   async scheduled(event, env) {
