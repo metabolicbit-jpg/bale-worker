@@ -1270,9 +1270,17 @@ export default {
             const lk = 'lk:' + uid + ':' + pidU;
             if (!tester && (await KV.get(lk))) { await bale('sendMessage', { chat_id: uid, text: '❤️ قبلاً این پست رو پسندیدی!' }); return new Response('ok'); }
             await KV.put(lk, '1', { expirationTtl: 86400 });
-            u.coins += 3;
-            await saveUser(uid, u);
             const stp = await cbPostState(pidU, 'like');
+            const todayL = new Date().toISOString().slice(0, 10);
+            const lKey = 'likecnt:' + uid + ':' + todayL;
+            const lcnt = parseInt(await KV.get(lKey) || '0');
+            let gotCoin = false;
+            if (tester || lcnt < 3) {
+              gotCoin = true;
+              if (!tester) await KV.put(lKey, String(lcnt + 1), { expirationTtl: 86400 });
+              u.coins += 3;
+              await saveUser(uid, u);
+            }
             const elog = (await KV.get('edit_log', 'json')) || [];
             try {
               const rM = await bale('editMessageReplyMarkup', { chat_id: cb.message.chat.id, message_id: cb.message.message_id, reply_markup: cbMarkedButtons(stp, pidU) });
@@ -1280,7 +1288,11 @@ export default {
             } catch (e) { elog.unshift({ m: 'like', err: String(e && e.message) }); }
             while (elog.length > 8) elog.pop();
             await KV.put('edit_log', JSON.stringify(elog));
-            await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +' + fa(3) + ' سکه\n👍 مجموع لایک این پست: ' + fa(stp.likes) + '\n🪙 موجودی: ' + fa(u.coins) });
+            if (gotCoin) {
+              await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +' + fa(3) + ' سکه\n👍 مجموع لایک این پست: ' + fa(stp.likes) + '\n🪙 موجودی: ' + fa(u.coins) });
+            } else {
+              await bale('sendMessage', { chat_id: uid, text: '❤️ لایکت روی پست ثبت شد! ولی سهمیهٔ سکهٔ امروزت (' + fa(3) + ' مورد) تموم شده.\n👍 مجموع لایک این پست: ' + fa(stp.likes) });
+            }
             return new Response('ok');
           }
           if (data === 'cb_sug') {
