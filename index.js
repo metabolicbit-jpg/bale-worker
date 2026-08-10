@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v22: دژ شش‌لایه + میز خودکار + زنگ تفریح) ==========
+// ========== میزگرد بله (v23: پیام‌های فارسی مرتب + دژ شش‌لایه) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -9,16 +9,17 @@ const MZ_CAT_KEYS = {
   'غذا': ['غذا','خورش','آشپزی','شیرینی','نوشیدنی','دسر','خوراکی','آش']
 };
 const MZ_ROOTS = { 'غذا': ['پلو','خورش','کباب','آش','سوپ','سالاد','دلمه','کوکو','ماکارونی','آبگوشت','قیمه','فسنجان','بریان','املت','نیمرو','حلیم','رشته','نان','سبزی'] };
-const MZ_TAUNTS = ['به‌به! چه میزی داغ بود! 😎','این دور ترکوند! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
+const MZ_TAUNTS = ['به‌به! چه میز داغی بود! 😎','این دور ترکوندی! 🔥','دور بعد جبران می‌کنی؟ 😏','سفرهٔ واژه هنوز پهنه! 🍽️'];
 const MZ_COUNTDOWN = 20;
-const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: توی گروه بنویس /نبرد\n۲)  عضوها با دکمهٔ «نشستن پای میز» می‌شن (۲ تا ۸ نفر)\n۳) ️ میزبان با «شروع نبرد» آغاز می‌کنه (شمارش معکوس ۲۰ ثانیه)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵)  نتیجه عمومی + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها پیش‌بینی می‌کنن کی قهرمانه\n۷) ️ کلمات ردشده به دادگاه میز میرن؛ با نصف+۱ رأی مثبت، تأیید و به فرهنگ‌نامه اضافه میشن\n۸) ️ بستن میز: /لغو (فقط میزبان)';
-const MZ_RULES = '📜 قوانین گروه مرکز بازی\n\n۱) ❌ سالن قفله؛ گفتگو فقط در زنگ تفریح\n۲) ️ لینک، فوروارد، تبلیغ = حذف + اخطار\n۳)  کلام نامناسب = حذف + اخطار\n۴) 🔇 ۳ اخطار = ۱ ساعت سکوت؛ ۵ = اخراج\n۵) 🏟️ میزگرد هر شب ۲۱:۳۰ خودکار\n۶) ✍️ جواب‌ها فقط خصوصی به بات\n۷) 📬 گزارش تخلف: پیام رو به بات فوروارد کن\n۸) ❤️ احترام = خط قرمز';
+const MZ_GUIDE = '📖 راهنمای میزگرد واژه‌ها\n\n۱) 🏟️ ساخت میز: در گروه بنویس /نبرد\n۲) 🪑 عضوها با دکمهٔ «نشستن پای میز» join می‌شن (۲ تا ۸ نفر)\n۳) ️ میزبان با «شروع نبرد» مسابقه رو آغاز می‌کنه (۲۰ ثانیه شمارش معکوس)\n۴) ✍️ جواب هر ستون رو خصوصی به بات بفرست\n۵) 🏁 نتیجه به‌صورت عمومی اعلام می‌شه + عنوان 👑 واژه‌سالار\n۶) 🔮 تماشاگرها می‌تونن قهرمان رو پیش‌بینی کنن\n۷) 🏛️ کلمات ردشده به «دادگاه میز» میرن؛ با رأی نصف+۱ به فرهنگ‌نامه اضافه می‌شن\n۸) 🗑️ بستن میز: /لغو (فقط میزبان)';
+const MZ_RULES = '📜 قوانین گروه مرکز بازی\n\n۱) 🏟️ سالن مسابقه قفله؛ گفتگوی آزاد فقط در «زنگ تفریح»\n۲) ⚠️ ارسال لینک، فوروارد و تبلیغ = حذف پیام + اخطار\n۳) 🚫 کلام نامناسب و بی‌احترامی = حذف پیام + اخطار\n۴) 🔇 پس از ۳ اخطار = یک ساعت سکوت\n۵) ⛔️ پس از ۵ اخطار = حذف از گروه\n۶) 🕘 میزگرد واژه‌ها هر شب ساعت ۲۱:۳۰ به‌صورت خودکار\n۷) ✍️ جواب‌های مسابقه فقط خصوصی به بات\n۸)  برای گزارش تخلف، پیام متخلف رو به بات فوروارد کن\n۹) ❤️ احترام متقابل = خط قرمز ما';
 const MOD_BW = ['کیر','کون','جنده','حرومی','بیناموس','بی‌ناموس','ناموست','گوه','لاشی','خرکس'];
 
 function cbButtons(pid) {
   return { inline_keyboard: [ [{ text: '❤️ پسندیدم (+۳)', callback_data: 'cb_like:' + pid }, { text: '💡 پیشنهاد به مجله (+۵)', callback_data: 'cb_sug' }] ] };
 }
 
+function faP(n) { const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']; return String(n).replace(/\d/g, function(d) { return p[d]; }); }
 function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
 function mzShort(s) { return (s || 'بازیکن').slice(0, 8); }
 function mzRootHit(col, w) { const rs = MZ_ROOTS[col] || []; for (const r of rs) { if (r && w.indexOf(r) !== -1) return true; } return false; }
@@ -197,7 +198,7 @@ async function mzConsensus(KV, env, col, w, uid) {
           const u = await mzGetUser(KV, id);
           u.coins += 10;
           await KV.put('u:' + id, JSON.stringify(u));
-          try { await mzBale(env, 'sendMessage', { chat_id: id, text: '🎉 واژه «' + w + '» که ثبت کرده بودی، با اجماع بازیکن‌ها به فرهنگ‌نامهٔ نبرد واژه‌ها اضافه شد! +۱۰ سکه' }); } catch (e) {}
+          try { await mzBale(env, 'sendMessage', { chat_id: id, text: '🎉 واژه «' + w + '» که ثبت کرده بودی، با اجماع بازیکن‌ها به فرهنگ‌نامهٔ نبرد واژه‌ها اضافه شد! +' + faP(10) + ' سکه' }); } catch (e) {}
         }
       }
     }
@@ -211,7 +212,7 @@ async function mzClose(env, KV, key, chatId) {
   let active = (await KV.get('mz_active', 'json')) || [];
   active = active.filter(function(c) { return c !== String(chatId); });
   await KV.put('mz_active', JSON.stringify(active));
-  await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🗑️ میز بسته شد. برای میز جدید: /نبرد' });
+  await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🗑️ میز بسته شد.\nبرای میز جدید: /نبرد' });
 }
 
 async function engineMorning(env) {
@@ -233,7 +234,7 @@ async function engineMorning(env) {
   let code = '';
   for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
   await KV.put('daily_code', JSON.stringify({ date: today, code: code }));
-  await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎁 مأموریت روز: امروز یه میزگرد بزن و حداقل ۳ ستون رو پر کن!\n\n🔑 کد جایزه: ' + code + '\n\nکد رو خصوصی به بات بفرست:\n/کد ' + code + '\n→ +۲۵ سکه', reply_markup: cbButtons('mission:' + today) });
+  await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: '🎁 مأموریت روز: امروز یه میزگرد بزن و حداقل ۳ ستون رو پر کن!\n\n🔑 کد جایزه: ' + code + '\n\nکد رو خصوصی به بات بفرست:\n/کد ' + code + '\n→ +' + faP(25) + ' سکه', reply_markup: cbButtons('mission:' + today) });
 }
 
 async function engineEvening(env) {
@@ -244,7 +245,7 @@ async function engineEvening(env) {
   const lb = (await KV.get('lb', 'json')) || [];
   if (lb.length) {
     let t = '🏆 تابلوی افتخار\n\n';
-    const medals = ['🥇','','🥉','۴.','۵.'];
+    const medals = ['🥇','🥈','🥉','۴.','۵.'];
     lb.slice(0, 5).forEach(function(e, i) { t += medals[i] + ' ' + e.name + ' — ' + e.best + '\n'; });
     t += '\n🎯 فردا تو نفر اول باش!';
     try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: t, reply_markup: cbButtons('board:' + today) }); } catch (e) {}
@@ -264,7 +265,7 @@ async function engineAutoNabard(env) {
   let active = (await KV.get('mz_active', 'json')) || [];
   if (active.indexOf(String(gid)) === -1) active.push(String(gid));
   await KV.put('mz_active', JSON.stringify(active));
-  await mzBale(env, 'sendMessage', { chat_id: gid, text: '📣🏟️ میزگرد شبانهٔ خودکار — ' + mzWhen() + '\n⏳ شروع تا ۶۰ ثانیه؛ همین حالا پای میز بشین!\n۹۰ ثانیه، ۶ ستون، ستون طلایی ×۲ — جواب‌ها خصوصی 🔮', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '📖 راهنما', callback_data: 'mz_guide' }] ] } });
+  await mzBale(env, 'sendMessage', { chat_id: gid, text: '📣 میزگرد شبانهٔ واژه‌ها — ' + mzWhen() + '\n\n⏳ شروع مسابقه تا ' + faP(60) + ' ثانیهٔ دیگر\n🪑 همین حالا با دکمهٔ «نشستن پای میز» جات رو رزرو کن!\n\n📝 ' + faP(6) + ' ستون | ⏱ ' + faP(90) + ' ثانیه | ⭐ ستون طلایی با ضریب ۲\n✍️ جواب‌ها فقط خصوصی به بات', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '📖 راهنما', callback_data: 'mz_guide' }] ] } });
 }
 async function engineRecess(env, open) {
   const KV = env.GAME_KV;
@@ -272,13 +273,13 @@ async function engineRecess(env, open) {
   if (!gid) return;
   await KV.put('recess', open ? '1' : '0');
   await modSetLock(env, gid, !open);
-  await mzBale(env, 'sendMessage', { chat_id: gid, text: open ? '🎈 زنگ تفریح باز شد! ۲۰ دقیقه گفتگوی آزاد — با رعایت احترام و قوانین.' : '🏟️ زنگ تفریح تمام شد؛ سالن به حالت مسابقه برگشت.' });
+  await mzBale(env, 'sendMessage', { chat_id: gid, text: open ? '🎈 زنگ تفریح باز شد!\n\nبه‌مدت ۲۰ دقیقه گفتگوی آزاد آزاده؛ فقط احترام و قوانین رو رعایت کنید. 🌷' : '🏟️ زنگ تفریح به پایان رسید.\n\nسالن دوباره به حالت مسابقه برگشت؛ منتظر میزگرد شبانه باشید!' });
 }
 async function engineDigest(env) {
   const KV = env.GAME_KV;
   const s = (await KV.get('modstat', 'json')) || { del: 0, mute: 0, rep: 0, join: 0 };
   const adminG = await KV.get('admin_id');
-  if (adminG) await mzBale(env, 'sendMessage', { chat_id: adminG, text: '📊 گزارش شبانهٔ گروه\n\n🗑️ حذف: ' + s.del + '\n🔇 سکوت: ' + s.mute + '\n📬 گزارش: ' + s.rep + '\n👥 عضو جدید: ' + s.join + '\n\n' + ((s.del + s.mute) > 5 ? '⚠️ امروز پرفتنش بود؛ بررسی کن.' : '✅ همه‌چیز آروم بود.') });
+  if (adminG) await mzBale(env, 'sendMessage', { chat_id: adminG, text: '📊 گزارش شبانهٔ گروه\n\n🗑️ پیام حذف‌شده: ' + faP(s.del) + '\n🔇 سکوت‌شده: ' + faP(s.mute) + '\n📬 گزارش ثبت‌شده: ' + faP(s.rep) + '\n👥 عضو جدید: ' + faP(s.join) + '\n\n' + ((s.del + s.mute) > 5 ? '⚠️ امروز پرفتنش بود؛ بررسی کن.' : '✅ همه‌چیز آروم بود.') });
   await KV.put('modstat', JSON.stringify({ del: 0, mute: 0, rep: 0, join: 0 }));
 }
 
@@ -353,15 +354,15 @@ async function mzPostResult(env, KV, st) {
   }
   const gTotal = parseInt(await KV.get('mzg:' + st.chat) || '0');
   await KV.put('mzg:' + st.chat, String(gTotal + total));
-  let t = '🏁 نتیجهٔ میزگرد!\n\n';
+  let t = '🏁 نتیجهٔ نهایی میزگرد!\n\n';
   t += 'ستون | ' + st.players.map(function(p) { return mzShort(p.name); }).join(' | ') + '\n';
   MZ_COLS.forEach(function(col, i) {
     t += col + ' | ' + st.players.map(function(p) { return (p.cells ? p.cells[i] : 0); }).join(' | ') + '\n';
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
-  st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + r.score + '\n'; });
+  const medals = ['🥇','','🥉','۴.','۵.','۶.','۷.','۸.'];
+  st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + faP(r.score) + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
   let betText = '';
@@ -369,7 +370,7 @@ async function mzPostResult(env, KV, st) {
     const targetName = st.players[b.on] ? st.players[b.on].name : '؟';
     const u = await mzGetUser(KV, b.user);
     if (winId === null) { u.coins += b.amount; betText += '↩️ پیش‌بینی ' + b.name + ' دربارهٔ ' + targetName + ' برگشت.\n'; }
-    else if (b.on === winIdx) { const gain = b.amount + Math.floor(b.amount * 0.8); u.coins += gain; betText += '💰 ' + b.name + ' هوادارِ ' + targetName + ' برنده شد: +' + gain + '\n'; }
+    else if (b.on === winIdx) { const gain = b.amount + Math.floor(b.amount * 0.8); u.coins += gain; betText += '💰 ' + b.name + ' هوادارِ ' + targetName + ' برنده شد: +' + faP(gain) + '\n'; }
     else betText += '😅 پیش‌بینی ' + b.name + ' دربارهٔ ' + targetName + ' درست نبود.\n';
     await KV.put('u:' + b.user, JSON.stringify(u));
   }
@@ -389,7 +390,7 @@ async function mzPostResult(env, KV, st) {
   }
   if (st.court.length) {
     st.courtUntil = Date.now() + 600000;
-    t += '\n🏛️ دادگاه میز: این کلمات رد شدن — رأی بدید!\n';
+    t += '\n🏛️ دادگاه میز\n\nاین کلمات رد شدن؛ با رأی‌گیری تصمیم می‌گیریم:\n';
     st.court.forEach(function(c) { t += '• ' + c.w + ' (' + c.col + ') — مالِ ' + c.ownerName + '\n'; });
   } else { st.courtUntil = 0; }
 
@@ -421,9 +422,9 @@ async function mzStartPlay(env, KV, st, key) {
     if (st.players[i + 1]) row.push({ text: '🔮 ' + st.players[i + 1].name, callback_data: 'mz_bet_' + (i + 1) });
     betRows.push(row);
   }
-  await mzBale(env, 'sendMessage', { chat_id: st.chat, text: '🔔️ نبرد شروع شد!\nحرف: ' + st.letter + ' | ستون طلایی: ' + MZ_COLS[st.golden] + ' ⭐\n جواب‌ها رو خصوصی به بات بفرستید.\n🔮 تماشاگرها: پیش‌بینی کنید کی قهرمانه!', reply_markup: { inline_keyboard: betRows } });
+  await mzBale(env, 'sendMessage', { chat_id: st.chat, text: '🔔️ مسابقه شروع شد!\n\n🔤 حرف این دور: ' + st.letter + '\n⭐ ستون طلایی: ' + MZ_COLS[st.golden] + ' (با ضریب ۲)\n\n✍️ بازیکن‌ها: جواب هر ستون رو خصوصی به بات بفرستید\n🔮 تماشاگرها: پیش‌بینی قهرمان رو ثبت کنید', reply_markup: { inline_keyboard: betRows } });
   for (const p of st.players) {
-    await mzBale(env, 'sendMessage', { chat_id: p.id, text: '🏟️ میزگرد شروع!\nحرف: ' + st.letter + '\n۱/۶ ' + MZ_COLS[0] + '؟' });
+    await mzBale(env, 'sendMessage', { chat_id: p.id, text: '🏟️ مسابقه شروع شد!\n\n🔤 حرف این دور: ' + st.letter + '\n✍️ ستون ' + faP(1) + ' از ' + faP(6) + ' — ' + MZ_COLS[0] + ':' });
   }
 }
 
@@ -437,7 +438,6 @@ async function mzHandle(update, env, ctx) {
 
     if (chat.type === 'channel') return true;
 
-    // ===== لایه‌های ۰ تا ۳: قفل، دروازهٔ ورود، محتوا، رفتار =====
     if (isGroup && msg.new_chat_members && msg.new_chat_members.length) {
       await KV.put('group_main', String(chat.id));
       const js = (await KV.get('joinbuf', 'json')) || [];
@@ -448,7 +448,7 @@ async function mzHandle(update, env, ctx) {
       if (js.length >= 10) {
         await modSetLock(env, chat.id, true);
         const adminG = await KV.get('admin_id');
-        if (adminG) await mzBale(env, 'sendMessage', { chat_id: adminG, text: '🚨 هجوم عضویت در گروه! قفل اضطراری فعال شد.' });
+        if (adminG) await mzBale(env, 'sendMessage', { chat_id: adminG, text: '🚨 هجوم عضویت در گروه!\nقفل اضطراری فعال شد.' });
         return true;
       }
       for (const nm of msg.new_chat_members) {
@@ -458,7 +458,7 @@ async function mzHandle(update, env, ctx) {
           try { await mzBale(env, 'restrictChatMember', { chat_id: chat.id, user_id: Number(nm.id), permissions: { can_send_messages: false } }); } catch (e) {}
         }
       }
-      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '👋 خوش اومدید!\n📜 قوانین: /rules\n🏟️ میزگرد هر شب ۲۱:۳۰ خودکار — جواب‌ها خصوصی به بات.' });
+      await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '👋 به خانوادهٔ مرکز بازی خوش اومدی!\n\n📜 قوانین رو با /rules مطالعه کن\n🏟️ میزگرد واژه‌ها هر شب ساعت ۲۱:۳۰ به‌صورت خودکار برگزار می‌شه\n✍️ جواب‌های مسابقه فقط خصوصی به بات ارسال بشه\n\n🌟 جات رو همین حالا رزرو کن!' });
       return true;
     }
     if (isGroup && msg.from && !msg.from.is_bot) {
@@ -487,7 +487,7 @@ async function mzHandle(update, env, ctx) {
         else if (bad) violation = 'کلام نامناسب';
         else if (hasMedia) violation = 'رسانهٔ غیرمجاز';
         else if (farr.length >= 5) violation = 'اسپم';
-        else if (!recessOn && !allowedCmd) violation = 'سالن قفله — فقط دکمه‌ها و دستورها';
+        else if (!recessOn && !allowedCmd) violation = 'پیام خارج از چارچوب';
         if (violation) {
           try { await mzBale(env, 'deleteMessage', { chat_id: chat.id, message_id: msg.message_id }); } catch (e) {}
           await modCount(KV, 'del');
@@ -496,22 +496,21 @@ async function mzHandle(update, env, ctx) {
           if (w >= 5) {
             await KV.put(wkey, '0');
             try { await mzBale(env, 'banChatMember', { chat_id: chat.id, user_id: Number(uidG) }); } catch (e) {}
-            await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⛔️ ' + (msg.from.first_name || 'کاربر') + ' به‌دلیل تکرار تخلف حذف شد.' });
+            await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⛔️ ' + (msg.from.first_name || 'کاربر') + ' به‌دلیل تکرار تخلف، از گروه حذف شد.\n\n🛡️ اولویت ما حفظ آرامش و امنیت همهٔ اعضاست.' });
           } else if (w >= 3) {
             await KV.put(wkey, String(w), { expirationTtl: 86400 });
             try { await mzBale(env, 'restrictChatMember', { chat_id: chat.id, user_id: Number(uidG), permissions: { can_send_messages: false }, until_date: Math.floor(Date.now() / 1000) + 3600 }); } catch (e) {}
             await modCount(KV, 'mute');
-            await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🔇 ' + (msg.from.first_name || 'کاربر') + ' به‌دلیل «' + violation + '» ۱ ساعت ساکت شد.' });
+            await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🔇 ' + (msg.from.first_name || 'کاربر') + ' به‌دلیل «' + violation + '» به‌مدت یک ساعت ساکت شد.\n\n🌱 امیدواریم بعد از بازگشت، با رعایت قوانین کنار هم باشیم.' });
           } else {
             await KV.put(wkey, String(w), { expirationTtl: 86400 });
-            await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⚠️ ' + (msg.from.first_name || 'کاربر') + '، «' + violation + '» مجاز نیست.\nاخطار ' + w + ' از ۵ — ۳ اخطار=سکوت، ۵=اخراج.' });
+            await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⚠️ ' + (msg.from.first_name || 'کاربر') + ' عزیز، «' + violation + '» در گروه مجاز نیست.\n\n📌 اخطار ' + faP(w) + ' از ' + faP(5) + '\n🔇 پس از ' + faP(3) + ' اخطار: یک ساعت سکوت\n⛔️ پس از ' + faP(5) + ' اخطار: حذف از گروه\n\n🌷 لطفاً قوانین رو رعایت کن: /rules' });
           }
           return true;
         }
       }
     }
 
-    // ===== فرمان‌های ادمین (لایهٔ ۵) =====
     if (text === '/قفل' || text === '/lock') {
       if (String((msg.from && msg.from.id) || chat.id) === (await KV.get('admin_id'))) { await modSetLock(env, chat.id, true); await KV.put('recess', '0'); await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🔒 سالن قفل شد.' }); }
       return true;
@@ -523,14 +522,14 @@ async function mzHandle(update, env, ctx) {
     if (text === '/سکوت' && msg.reply_to_message && msg.reply_to_message.from) {
       if (String((msg.from && msg.from.id) || chat.id) === (await KV.get('admin_id'))) {
         try { await mzBale(env, 'restrictChatMember', { chat_id: chat.id, user_id: Number(msg.reply_to_message.from.id), permissions: { can_send_messages: false }, until_date: Math.floor(Date.now() / 1000) + 3600 }); } catch (e) {}
-        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🔇 کاربر ۱ ساعت ساکت شد.' });
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🔇 کاربر به‌مدت یک ساعت ساکت شد.' });
       }
       return true;
     }
     if (text === '/اخراج' && msg.reply_to_message && msg.reply_to_message.from) {
       if (String((msg.from && msg.from.id) || chat.id) === (await KV.get('admin_id'))) {
         try { await mzBale(env, 'banChatMember', { chat_id: chat.id, user_id: Number(msg.reply_to_message.from.id) }); } catch (e) {}
-        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⛔️ کاربر حذف شد.' });
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '⛔️ کاربر از گروه حذف شد.' });
       }
       return true;
     }
@@ -540,7 +539,7 @@ async function mzHandle(update, env, ctx) {
         const arr = (await KV.get('mod_words', 'json')) || [];
         if (w && arr.indexOf(w) === -1) arr.push(w);
         await KV.put('mod_words', JSON.stringify(arr));
-        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ به فهرست سیاه اضافه شد (' + arr.length + ' مورد).' });
+        await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '✅ به فهرست سیاه اضافه شد (' + faP(arr.length) + ' مورد).' });
       }
       return true;
     }
@@ -587,8 +586,8 @@ async function mzHandle(update, env, ctx) {
       return true;
     }
     if (text === '/ایدی' || text === '/id') {
-      let t = '🆔 شناسهٔ عددی تو: ' + String((msg.from && msg.from.id) || chat.id);
-      if (isGroup) t += '\n🆔 شناسهٔ این گروه: ' + String(chat.id);
+      let t = '🆔 شناسهٔ عددی تو: ' + faP(String((msg.from && msg.from.id) || chat.id));
+      if (isGroup) t += '\n🆔 شناسهٔ این گروه: ' + faP(String(chat.id));
       await mzBale(env, 'sendMessage', { chat_id: chat.id, text: t });
       return true;
     }
@@ -615,12 +614,12 @@ async function mzHandle(update, env, ctx) {
           u.claimed.dailyCode = today;
           u.coins += 25;
           await KV.put('u:' + uid, JSON.stringify(u));
-          await mzBale(env, 'sendMessage', { chat_id: uid, text: '🎁 مأموریت روز انجام شد! +۲۵ سکه\n🪙 موجودی: ' + u.coins });
+          await mzBale(env, 'sendMessage', { chat_id: uid, text: '🎁 مأموریت روز انجام شد! +' + faP(25) + ' سکه\n🪙 موجودی: ' + faP(u.coins) });
         }
       } else { await mzBale(env, 'sendMessage', { chat_id: uid, text: '❌ کد اشتباه یا مال امروز نیست.' }); }
       return true;
     }
-    if (isGroup && (text === '/start')) { await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🎮 مرکز بازی در خدمت این گروه!\n\n🏟️ میزگرد هر شب ۲۱:۳۰ خودکار\n📖 /rahnama — 📜 /rules' }); return true; }
+    if (isGroup && (text === '/start')) { await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '🎮 به گروه مرکز بازی خوش اومدی!\n\n🏟️ میزگرد واژه‌ها هر شب ساعت ۲۱:۳۰ به‌صورت خودکار\n📖 راهنما: /rahnama\n📜 قوانین: /rules' }); return true; }
 
     if (isGroup && (text === '/نبرد' || text === '/nabard')) {
       const uid = String(msg.from.id);
@@ -629,7 +628,7 @@ async function mzHandle(update, env, ctx) {
       if (existing && existing.phase !== 'result') {
         const stale = (existing.phase === 'join' && Date.now() - existing.createdAt > 300000) || (existing.phase !== 'join' && existing.endsAt && Date.now() > existing.endsAt + 120000);
         if (!stale) {
-          const m = '⚔️ یه میز بالفعل بازه! یا بشین، یا صبر کن تموم بشه.';
+          const m = '⚔️ یک میزگرد دیگه همین حالا بازه!\n\nلطفاً همون‌جا بشین یا تا پایان مسابقه صبر کن.';
           await mzBale(env, 'sendMessage', { chat_id: chat.id, text: m, reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '🗑️ بستن میز (میزبان)', callback_data: 'mz_close' }] ] } });
           await mzBale(env, 'sendMessage', { chat_id: uid, text: m });
           return true;
@@ -641,7 +640,7 @@ async function mzHandle(update, env, ctx) {
       if (active.indexOf(String(chat.id)) === -1) active.push(String(chat.id));
       await KV.put('mz_active', JSON.stringify(active));
       await KV.put('group_main', String(chat.id));
-      const sent = await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '📣🏟️ میزگرد واژه‌ها — ' + mzWhen() + '\n👑 میزبان: ' + (msg.from.first_name || '؟') + '\n۹۰ ثانیه، ۶ ستون، ستون طلایی ×۲.\nجواب‌ها خصوصی؛ نتیجه عمومی! تماشاگرها پیش‌بینی کنند 🔮', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '⚔️ شروع نبرد (میزبان)', callback_data: 'mz_start' }], [{ text: '📨 دعوت دوستان به گروه', callback_data: 'mz_invite' }, { text: '📖 راهنما', callback_data: 'mz_guide' }] ] } });
+      const sent = await mzBale(env, 'sendMessage', { chat_id: chat.id, text: '📣 میزگرد واژه‌ها — ' + mzWhen() + '\n\n👑 میزبان: ' + (msg.from.first_name || '؟') + '\n⏱ ' + faP(90) + ' ثانیه | 📝 ' + faP(6) + ' ستون | ⭐ ستون طلایی با ضریب ۲\n\n✍️ جواب‌ها خصوصی | 🏁 نتیجه عمومی\n🔮 تماشاگرها می‌تونن قهرمان رو پیش‌بینی کنن!', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '⚔️ شروع نبرد (میزبان)', callback_data: 'mz_start' }], [{ text: '📨 دعوت دوستان به گروه', callback_data: 'mz_invite' }, { text: '📖 راهنما', callback_data: 'mz_guide' }] ] } });
       try { if (sent && sent.result && sent.result.message_id) await mzBale(env, 'pinChatMessage', { chat_id: chat.id, message_id: sent.result.message_id, disable_notification: true }); } catch (e) {}
       return true;
     }
@@ -670,9 +669,9 @@ async function mzHandle(update, env, ctx) {
             if (p.idx >= MZ_COLS.length) {
               p.submitted = true;
               p.timeBonus = Math.max(0, Math.ceil((st.endsAt - Date.now()) / 1000)) * 2;
-              await mzBale(env, 'sendMessage', { chat_id: uid, text: '✅ ثبت شد! ⚡ پاداش سرعت: +' + p.timeBonus + '\nمنتظر بقیه...' });
+              await mzBale(env, 'sendMessage', { chat_id: uid, text: '✅ جوابت ثبت شد!\n⚡ پاداش سرعت: +' + faP(p.timeBonus) + ' سکه\n\n⏳ منتظر بقیهٔ بازیکن‌ها می‌مونیم...' });
             } else {
-              await mzBale(env, 'sendMessage', { chat_id: uid, text: (p.idx + 1) + '/۶ ' + MZ_COLS[p.idx] + '؟' });
+              await mzBale(env, 'sendMessage', { chat_id: uid, text: '✍️ ستون ' + faP(p.idx + 1) + ' از ' + faP(6) + ' — ' + MZ_COLS[p.idx] + ':' });
             }
             if (st.players.every(function(x) { return x.submitted; })) { await mzJudge(env, KV, st); await mzPostResult(env, KV, st); }
             await KV.put('mz:' + g, JSON.stringify(st));
@@ -701,7 +700,7 @@ async function mzHandle(update, env, ctx) {
         if (!st.players.find(function(p) { return p.id === uid; })) {
           st.players.push({ id: uid, name: name, answers: {}, idx: 0, submitted: false, score: 0, timeBonus: 0, cells: [0,0,0,0,0,0] });
           await KV.put('mzu:' + uid, String(chatId));
-          await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🪑 ' + name + ' پای میز نشست! (' + st.players.length + ' نفر)' });
+          await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🪑 ' + name + ' پای میز نشست.\n👥 حاضرین تا الان: ' + faP(st.players.length) + ' نفر' });
           await KV.put(key, JSON.stringify(st));
         }
         return true;
@@ -735,7 +734,7 @@ async function mzHandle(update, env, ctx) {
         st.phase = 'countdown';
         st.startsAt = Date.now() + MZ_COUNTDOWN * 1000;
         await KV.put(key, JSON.stringify(st));
-        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '📢 نبرد تا ' + MZ_COUNTDOWN + ' ثانیه دیگه شروع میشه! ⏳ آماده باشید...' });
+        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '📢 مسابقه تا ' + faP(MZ_COUNTDOWN) + ' ثانیهٔ دیگر شروع می‌شه!\n⏳ آماده باشید...' });
         if (ctx && ctx.waitUntil) {
           ctx.waitUntil((async function() {
             await new Promise(function(r) { setTimeout(r, MZ_COUNTDOWN * 1000 + 500); });
@@ -753,12 +752,12 @@ async function mzHandle(update, env, ctx) {
         if (!target) return true;
         if (st.bets.find(function(b) { return b.user === uid; })) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً پیش‌بینی کردی!' }); return true; }
         const u = await mzGetUser(KV, uid);
-        if (u.coins < 20) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'سکه کافی نیست (۲۰ لازمه)' }); return true; }
+        if (u.coins < 20) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'سکه کافی نیست (' + faP(20) + ' لازمه)' }); return true; }
         u.coins -= 20;
         await KV.put('u:' + uid, JSON.stringify(u));
         st.bets.push({ user: uid, name: name, on: idx, amount: 20 });
         await KV.put(key, JSON.stringify(st));
-        await mzBale(env, 'sendMessage', { chat_id: uid, text: '🔮 پیش‌بینی ۲۰ سکه‌ای روی قهرمانیِ ' + target.name + ' ثبت شد!' });
+        await mzBale(env, 'sendMessage', { chat_id: uid, text: '🔮 پیش‌بینی ' + faP(20) + ' سکه‌ای روی قهرمانیِ ' + target.name + ' ثبت شد!' });
         return true;
       }
 
@@ -772,7 +771,7 @@ async function mzHandle(update, env, ctx) {
         if (c.yes.indexOf(uid) !== -1 || c.no.indexOf(uid) !== -1) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً رأی دادی!' }); return true; }
         if (side === 'y') c.yes.push(uid); else c.no.push(uid);
         if (/^\d+$/.test(uid)) { const u = await mzGetUser(KV, uid); u.coins += 2; await KV.put('u:' + uid, JSON.stringify(u)); }
-        let msg2 = '🗳️ رأی تو ثبت شد (+۲ سکه)';
+        let msg2 = '🗳️ رأی تو ثبت شد (+' + faP(2) + ' سکه)';
         if (c.yes.length >= 2 && c.yes.length > c.no.length) {
           c.done = true;
           const learned = (await KV.get('learned:' + c.col, 'json')) || [];
@@ -782,7 +781,7 @@ async function mzHandle(update, env, ctx) {
             const ou = await mzGetUser(KV, c.owner);
             ou.coins += reward;
             await KV.put('u:' + c.owner, JSON.stringify(ou));
-            try { await mzBale(env, 'sendMessage', { chat_id: c.owner, text: '🏛️ دادگاه میز کلمهٔ «' + c.w + '» رو پذیرفت! +' + reward + ' سکه بهت برگشت.' }); } catch (e) {}
+            try { await mzBale(env, 'sendMessage', { chat_id: c.owner, text: '🏛️ دادگاه میز کلمهٔ «' + c.w + '» رو پذیرفت! +' + faP(reward) + ' سکه بهت برگشت.' }); } catch (e) {}
           }
           await mzBale(env, 'sendMessage', { chat_id: chatId, text: '✅ «' + c.w + '» با رأی میز پذیرفته شد و به فرهنگ‌نامه رفت!' });
           msg2 = '🗳️ رأی تو ثبت شد — کلمه پذیرفته شد! 🎉';
@@ -862,7 +861,7 @@ export default {
       await KV.put('lb', JSON.stringify(lb.slice(0, 50)));
     }
     async function sendTasks(chatId) {
-      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +۱۰۰\n👥 عضویت گروه: +۱۰۰\n🎮 هر بازی: تا +۵۰\n🎯 رکورد جدید: +۵۰ اضافه\n ورود روزانه: +۰ (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
+      await bale('sendMessage', { chat_id: chatId, text: '📋 کارهای سکه‌دار:\n\n👥 عضویت کانال: +' + fa(100) + '\n👥 عضویت گروه: +' + fa(100) + '\n🎮 هر بازی: تا +' + fa(50) + '\n🎯 رکورد جدید: +' + fa(50) + ' اضافه\n📅 ورود روزانه: +' + fa(30) + ' (خودکار)', reply_markup: { inline_keyboard: [ [{ text: '📢 کانال', url: 'https://ble.ir/' + CHANNEL.replace('@', '') }, { text: '👥 گروه', url: 'https://ble.ir/' + GROUP.replace('@', '') }], [{ text: '✅ عضو کانال شدم', callback_data: 'task_channel' }], [{ text: '✅ عضو گروه شدم', callback_data: 'task_group' }] ] } });
     }
     async function sendShop(chatId, u) {
       let t = '🛒 فروشگاه اسکین و آیتم\n\n';
@@ -1092,7 +1091,7 @@ export default {
           try {
             const chText = (chPost.text || '').trim();
             if (chText === '/ایدی' || chText === '/id') {
-              await bale('sendMessage', { chat_id: chPost.chat.id, text: '🆔 شناسهٔ عددی این کانال: ' + String(chPost.chat.id) });
+              await bale('sendMessage', { chat_id: chPost.chat.id, text: '🆔 شناسهٔ عددی این کانال: ' + faP(String(chPost.chat.id)) });
               return new Response('ok');
             }
             if (chPost.message_id && !(chPost.reply_markup && chPost.reply_markup.inline_keyboard)) {
@@ -1144,12 +1143,12 @@ export default {
                   try { await mzBale(env, 'deleteMessage', { chat_id: pm.forward_from_chat.id, message_id: mid }); } catch (e) {}
                   await modCount(KV, 'del');
                   if (target) {
-                    try { await mzBale(env, 'restrictChatMember', { chat_id: msg.forward_from_chat.id, user_id: Number(target), permissions: { can_send_messages: false }, until_date: Math.floor(Date.now() / 1000) + 3600 }); } catch (e) {}
+                    try { await mzBale(env, 'restrictChatMember', { chat_id: pm.forward_from_chat.id, user_id: Number(target), permissions: { can_send_messages: false }, until_date: Math.floor(Date.now() / 1000) + 3600 }); } catch (e) {}
                     await modCount(KV, 'mute');
                   }
-                  await bale('sendMessage', { chat_id: uid, text: '🚨 پیام با ۳ گزارش حذف و فرستنده ساکت شد. ممنون از همراهی!' });
+                  await bale('sendMessage', { chat_id: uid, text: '🚨 پیام با ' + faP(3) + ' گزارش حذف و فرستنده ساکت شد. ممنون از همراهی!' });
                 } else {
-                  await bale('sendMessage', { chat_id: uid, text: '📬 گزارشت ثبت شد (' + fa(arr.length) + ' از ۳).' });
+                  await bale('sendMessage', { chat_id: uid, text: '📬 گزارشت ثبت شد (' + faP(arr.length) + ' از ' + faP(3) + ').' });
                 }
               } else { await bale('sendMessage', { chat_id: uid, text: '📬 گزارش دریافت شد.' }); }
               return new Response('ok');
@@ -1177,7 +1176,7 @@ export default {
                 return new Response('ok');
               }
               let extra = '';
-              if (u.daily.login !== today) { u.daily.login = today; u.coins += 30; await saveUser(uid, u); extra = '\n\n🎁 جایزه ورود امروز: +۳۰ سکه'; }
+              if (u.daily.login !== today) { u.daily.login = today; u.coins += 30; await saveUser(uid, u); extra = '\n\n🎁 جایزه ورود امروز: +' + fa(30) + ' سکه'; }
               const fname = (update.message.from && update.message.from.first_name) || 'دوست';
               await bale('sendMessage', { chat_id: chat.id, text: '🎮 به مرکز بازی بله خوش اومدی، ' + fname + ' عزیز 🌹\n\nاینجا می‌تونی تک‌نفره یا با دوستانت بازی کنی، سکه جمع کنی و قهرمان هفته بشی!\n\n🌼 داوری همهٔ بازی‌ها خودکار و عادله.\n\n🪙 سکه تو: ' + fa(u.coins) + extra + '\n\n🔻 برای شروع از دکمه‌های زیر استفاده کن 🔻', reply_markup: { inline_keyboard: [
                 [{ text: '🎮 نبرد واژه‌ها [دونفره]', url: ESM_URL + '?user=' + uid }],
@@ -1205,10 +1204,10 @@ export default {
           if (data === 'profile') {
             msg = '🌼 حساب کاربری تو\n\n🪙 سکه: ' + fa(u.coins) + '\n🎮 بازی‌ها: ' + fa(u.games) + '\n⭐ بهترین رکورد: ' + fa(u.best) + '\n🏅 برد نبرد واژه‌ها: ' + fa((u.esm && u.esm.wins) || 0) + ' از ' + fa((u.esm && u.esm.games) || 0);
           }
-          else if (data === 'myid') { msg = '🆔 شناسهٔ عددی تو: ' + uid; }
+          else if (data === 'myid') { msg = '🆔 شناسهٔ عددی تو: ' + faP(uid); }
           else if (data === 'guide_menu') {
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
-            await bale('sendMessage', { chat_id: chatId, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش، سایه‌پرش، آخرین تخم\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — هر شب ۲۱:۳۰ خودکار\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE });
+            await bale('sendMessage', { chat_id: chatId, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش، سایه‌پرش، آخرین تخم\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — هر شب ساعت ۲۱:۳۰ خودکار\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE });
             return new Response('ok');
           }
           else if (data === 'join_check') {
@@ -1231,7 +1230,7 @@ export default {
             } catch (e) { elog.unshift({ m: 'like', err: String(e && e.message) }); }
             while (elog.length > 8) elog.pop();
             await KV.put('edit_log', JSON.stringify(elog));
-            await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +۳ سکه\n👍 مجموع لایک این پست: ' + fa(stp.likes) + '\n🪙 موجودی: ' + fa(u.coins) });
+            await bale('sendMessage', { chat_id: uid, text: '❤️ ممنون از همراهی! +' + fa(3) + ' سکه\n👍 مجموع لایک این پست: ' + fa(stp.likes) + '\n🪙 موجودی: ' + fa(u.coins) });
             return new Response('ok');
           }
           if (data === 'cb_sug') {
@@ -1253,7 +1252,7 @@ export default {
             await KV.put('edit_log', JSON.stringify(elog2));
             u.coins += 5;
             await saveUser(uid, u);
-            await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت ' + (fwdOk ? 'به مجله رسید ✅' : 'ثبت شد') + '! +۵ سکه\n🪙 موجودی: ' + fa(u.coins) });
+            await bale('sendMessage', { chat_id: uid, text: '📬 پیشنهادت ' + (fwdOk ? 'به مجله رسید ✅' : 'ثبت شد') + '! +' + fa(5) + ' سکه\n🪙 موجودی: ' + fa(u.coins) });
             return new Response('ok');
           }
           if (data === 'coins') msg = '🪙 سکه تو: ' + fa(u.coins);
@@ -1268,7 +1267,7 @@ export default {
             const isMember = st.ok && ['member', 'administrator', 'creator'].includes(st.result.status);
             if (!isMember) msg = '❌ هنوز عضو نشدی! اول عضو ' + target + ' بشو، بعد دوباره بزن.';
             else if (u.claimed[key]) msg = 'این جایزه رو قبلاً گرفتی!';
-            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +۱۰۰ سکه\n🪙 موجودی: ' + fa(u.coins); }
+            else { u.claimed[key] = 1; u.coins += 100; await saveUser(uid, u); msg = '✅ عضویت تأیید شد! +' + fa(100) + ' سکه\n🪙 موجودی: ' + fa(u.coins); }
           }
           else if (data.startsWith('buy_')) {
             const item = SHOP.find(function(i) { return i.id === data.slice(4); });
@@ -1284,7 +1283,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v28 is running!');
+    return new Response('🎮 Bale Game Server v29 is running!');
   },
 
   async scheduled(event, env) {
@@ -1342,7 +1341,7 @@ export default {
         await mzJudge(env, KV, st);
         await mzPostResult(env, KV, st);
       }
-      else if (st.phase === 'join' && Date.now() - st.createdAt > 300000) { await mzBale(env, 'sendMessage', { chat_id: chatId, text: '😴 میز جمع شد (کسی شروع نکرد).' }); }
+      else if (st.phase === 'join' && Date.now() - st.createdAt > 300000) { await mzBale(env, 'sendMessage', { chat_id: chatId, text: '😴 میزگرد برگزار نشد؛ چون کسی شروع نکرد.' }); }
       else if (st.phase === 'result') {
         if (st.court && st.court.length && Date.now() > (st.courtUntil || 0)) {
           st.court = []; st.courtUntil = 0;
