@@ -961,7 +961,7 @@ export default {
       for (let i = 0; i < ESM_COLS.length; i++) {
         const col = ESM_COLS[i];
         const a = normFa(p0.answers[col] || '');
-        const b = normFa(p1.answers[col] || '';
+        const b = normFa(p1.answers[col] || '');
         let pa = await wordScore(col, a, p0.user || p0.id);
         let pb = await wordScore(col, b, p1.user || p1.id);
         if (pa && pb && a === b) { pa = Math.ceil(pa / 2); pb = Math.ceil(pb / 2); }
@@ -1130,9 +1130,10 @@ export default {
           const u = await getUser(uid);
           const today = new Date().toISOString().slice(0, 10);
           if (chat.type === 'private') {
-            if (msg.forward_from_chat && (await KV.get('group_main')) && String(msg.forward_from_chat.id) === String(await KV.get('group_main'))) {
-              const mid = msg.forward_from_message_id;
-              const target = msg.forward_from && msg.forward_from.id;
+            const pm = update.message;
+            if (pm.forward_from_chat && (await KV.get('group_main')) && String(pm.forward_from_chat.id) === String(await KV.get('group_main'))) {
+              const mid = pm.forward_from_message_id;
+              const target = pm.forward_from && pm.forward_from.id;
               if (mid) {
                 const rkey = 'rep:' + mid;
                 const arr = (await KV.get(rkey, 'json')) || [];
@@ -1140,7 +1141,7 @@ export default {
                 await KV.put(rkey, JSON.stringify(arr), { expirationTtl: 86400 });
                 await modCount(KV, 'rep');
                 if (arr.length >= 3) {
-                  try { await mzBale(env, 'deleteMessage', { chat_id: msg.forward_from_chat.id, message_id: mid }); } catch (e) {}
+                  try { await mzBale(env, 'deleteMessage', { chat_id: pm.forward_from_chat.id, message_id: mid }); } catch (e) {}
                   await modCount(KV, 'del');
                   if (target) {
                     try { await mzBale(env, 'restrictChatMember', { chat_id: msg.forward_from_chat.id, user_id: Number(target), permissions: { can_send_messages: false }, until_date: Math.floor(Date.now() / 1000) + 3600 }); } catch (e) {}
