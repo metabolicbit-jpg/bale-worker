@@ -1,4 +1,4 @@
-// ========== میزگرد بله (v24: محدودیت‌ها + سوییچ تست + تسترها) ==========
+// ========== میزگرد بله (v25: کیبورد Reply دائمی + اینلاین + سقف لایک) ==========
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -16,11 +16,25 @@ const MZ_RULES = '📜 قوانین گروه مرکز بازی\n\n۱) 🏟️ س
 const MOD_BW = ['کیر','کون','جنده','حرومی','بیناموس','بی‌ناموس','ناموست','گوه','لاشی','خرکس'];
 const TEST_MODE = false;
 const TESTERS = [];
+const REPLY_MENU = ['🎮 شروع','🌼 حساب کاربری','🛒 فروشگاه','📋 کارها','🏆 برترین‌ها | رتبه من','🚦 راهنما','📜 قوانین','❌ بستن منو'];
 
 function cbButtons(pid) {
   return { inline_keyboard: [ [{ text: '❤️ پسندیدم (+۳)', callback_data: 'cb_like:' + pid }, { text: '💡 پیشنهاد به مجله (+۵)', callback_data: 'cb_sug' }] ] };
 }
-
+function mkReplyMenu() {
+  return { keyboard: [
+    [{ text: '🎮 شروع' }],
+    [{ text: '🌼 حساب کاربری' }, { text: '🛒 فروشگاه' }],
+    [{ text: '📋 کارها' }, { text: '🏆 برترین‌ها | رتبه من' }],
+    [{ text: '🚦 راهنما' }, { text: '📜 قوانین' }],
+    [{ text: '❌ بستن منو' }]
+  ], resize_keyboard: true };
+}
+async function menuStat(KV, label) {
+  const s = (await KV.get('menu_stat', 'json')) || {};
+  s[label] = (s[label] || 0) + 1;
+  await KV.put('menu_stat', JSON.stringify(s));
+}
 async function isTester(KV, uid) {
   if (TEST_MODE) return true;
   if (TESTERS.indexOf(uid) !== -1) return true;
@@ -60,6 +74,15 @@ async function modCount(KV, k) {
   s[k] = (s[k] || 0) + 1;
   await KV.put('modstat', JSON.stringify(s));
 }
+
+const CB_URL = 'https://metabolicbit-jpg.github.io/bale-game/content.json';
+const CB_EMERG = [
+  '🧠 آیا می‌دانستید؟ مغز شما حتی وقتی می‌خندید هم در حال یادگیریه! 😄',
+  '❓ معما: چه چیزی مال توئه ولی بقیه بیشتر استفاده‌ش می‌کنن؟ (جواب: اسمت!)',
+  '💡 ترفند: قانون ۲ دقیقه — اگه کاری کمتر از ۲ دقیقه‌ست، همین حالا انجامش بده!',
+  '🎮 یادت باشه: هر شب ساعت ۲۱ میزگرد واژه‌ها در گروه! /نبرد',
+  '🤖 پرامپت روز: «یه نکته بگو که ۹۰٪ آدم‌ها نمی‌دونن»'
+];
 
 async function cbLoadBank(KV) {
   let bank = null;
@@ -117,15 +140,6 @@ async function cbAnswer(env) {
     try { await mzBale(env, 'sendMessage', { chat_id: '@bale_game_center', text: '✅ جواب معمای امروز: ' + r.a + '\n\nاگه درست حدس زدی، به خودت یه 🏆 بده! فردا معمای تازه.', reply_markup: cbButtons('answer:' + today) }); } catch (e) {}
   }
 }
-
-const CB_EMERG = [
-  '🧠 آیا می‌دانستید؟ مغز شما حتی وقتی می‌خندید هم در حال یادگیریه! 😄',
-  '❓ معما: چه چیزی مال توئه ولی بقیه بیشتر استفاده‌ش می‌کنن؟ (جواب: اسمت!)',
-  '💡 ترفند: قانون ۲ دقیقه — اگه کاری کمتر از ۲ دقیقه‌ست، همین حالا انجامش بده!',
-  '🎮 یادت باشه: هر شب ساعت ۲۱ میزگرد واژه‌ها در گروه! /نبرد',
-  '🤖 پرامپت روز: «یه نکته بگو که ۹۰٪ آدم‌ها نمی‌دونن»'
-];
-const CB_URL = 'https://metabolicbit-jpg.github.io/bale-game/content.json';
 
 function cbClean(s) {
   return (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
@@ -283,7 +297,7 @@ async function engineAutoNabard(env) {
   let active = (await KV.get('mz_active', 'json')) || [];
   if (active.indexOf(String(gid)) === -1) active.push(String(gid));
   await KV.put('mz_active', JSON.stringify(active));
-  await mzBale(env, 'sendMessage', { chat_id: gid, text: '📣 میزگرد شبانهٔ واژه‌ها — ' + mzWhen() + '\n\n⏳ شروع مسابقه تا ' + faP(60) + ' ثانیهٔ دیگر\n🪑 همین حالا با دکمهٔ «نشستن پای میز» جات رو رزرو کن!\n\n📝 ' + faP(6) + ' ستون | ⏱ ' + faP(90) + ' ثانیه | ⭐ ستون طلایی با ضریب ۲\n✍️ جواب‌ها فقط خصوصی به بات', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '📖 راهنما', callback_data: 'mz_guide' }] ] } });
+  await mzBale(env, 'sendMessage', { chat_id: gid, text: '📣 میزگرد شبانهٔ واژه‌ها — ' + mzWhen() + '\n\n⏳ شروع مسابقه تا ' + faP(60) + ' ثانیهٔ دیگر\n🪑 همین حالا با دکمهٔ «نشستن پای میز» جات رو رزرو کن!\n\n📝 ' + faP(6) + ' ستون | ⏱ ' + faP(90) + ' ثانیه | ⭐ ستون طلایی با ضریب ۲\n️ جواب‌ها فقط خصوصی به بات', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '📖 راهنما', callback_data: 'mz_guide' }] ] } });
 }
 async function engineRecess(env, open) {
   const KV = env.GAME_KV;
@@ -296,8 +310,9 @@ async function engineRecess(env, open) {
 async function engineDigest(env) {
   const KV = env.GAME_KV;
   const s = (await KV.get('modstat', 'json')) || { del: 0, mute: 0, rep: 0, join: 0 };
+  const ms = (await KV.get('menu_stat', 'json')) || {};
   const adminG = await KV.get('admin_id');
-  if (adminG) await mzBale(env, 'sendMessage', { chat_id: adminG, text: '📊 گزارش شبانهٔ گروه\n\n🗑️ پیام حذف‌شده: ' + faP(s.del) + '\n🔇 سکوت‌شده: ' + faP(s.mute) + '\n📬 گزارش ثبت‌شده: ' + faP(s.rep) + '\n👥 عضو جدید: ' + faP(s.join) + '\n\n' + ((s.del + s.mute) > 5 ? '⚠️ امروز پرفتنش بود؛ بررسی کن.' : '✅ همه‌چیز آروم بود.') });
+  if (adminG) await mzBale(env, 'sendMessage', { chat_id: adminG, text: '📊 گزارش شبانهٔ گروه\n\n🗑️ پیام حذف‌شده: ' + faP(s.del) + '\n🔇 سکوت‌شده: ' + faP(s.mute) + '\n📬 گزارش ثبت‌شده: ' + faP(s.rep) + '\n👥 عضو جدید: ' + faP(s.join) + '\n\n کلیک‌های منو:\n' + Object.keys(ms).map(function(k) { return k + ': ' + faP(ms[k]); }).join('\n') + '\n\n' + ((s.del + s.mute) > 5 ? '⚠️ امروز پرفتنش بود؛ بررسی کن.' : '✅ همه‌چیز آروم بود.') });
   await KV.put('modstat', JSON.stringify({ del: 0, mute: 0, rep: 0, join: 0 }));
 }
 
@@ -379,7 +394,7 @@ async function mzPostResult(env, KV, st) {
   });
   t += '⚡ سرعت | ' + st.players.map(function(p) { return p.timeBonus || 0; }).join(' | ') + '\n';
   t += '🏅 مجموع | ' + st.players.map(function(p) { return p.score; }).join(' | ') + '\n\n';
-  const medals = ['🥇','🥈','🥉','۴.','۵.','۶.','۷.','۸.'];
+  const medals = ['🥇','','🥉','۴.','۵.','۶.','۷.','۸.'];
   st.result.sorted.forEach(function(r, i) { t += (medals[i] || '•') + ' ' + r.name + ' — ' + faP(r.score) + '\n'; });
   if (winId) { const wp2 = st.players.find(function(p) { return p.id === winId; }); if (wp2) t += '\n👑 واژه‌سالار این میز: ' + wp2.name + '\n'; }
   const winIdx = winId ? st.players.findIndex(function(p) { return p.id === winId; }) : -1;
@@ -704,6 +719,7 @@ async function mzHandle(update, env, ctx) {
 
     if (chat.type === 'private' && msg.text && msg.text.charAt(0) !== '/') {
       const uid = String(msg.from.id);
+      if (REPLY_MENU.indexOf(text) !== -1) return false;
       const g = await KV.get('mzu:' + uid);
       if (g) {
         const st = await KV.get('mz:' + g, 'json');
@@ -880,6 +896,17 @@ export default {
         { text: (st.likes > 0 ? '❤️ ' + fa(st.likes) + ' لایک' : '❤️ پسندیدم (+۳)'), callback_data: 'cb_like:' + pid },
         { text: (st.sug ? '⬆️ پیشنهاد شد' : '💡 پیشنهاد به مجله (+۵)'), callback_data: 'cb_sug' }
       ] ] };
+    }
+    function mainInlineMenu(uid) {
+      return { inline_keyboard: [
+        [{ text: '🎮 نبرد واژه‌ها [دونفره]', url: ESM_URL + '?user=' + uid }],
+        [{ text: '🌼 حساب کاربری', callback_data: 'profile' }, { text: '🐤 پرنده‌پرش', url: GAME_URL + '?user=' + uid }],
+        [{ text: '👤 سایه‌پرش', url: SHADOW_URL + '?user=' + uid }, { text: '🥚 آخرین تخم', url: EGG_URL + '?user=' + uid }],
+        [{ text: '🏆 برترین‌ها | رتبه من', callback_data: 'rank' }, { text: '🚦 راهنما', callback_data: 'guide_menu' }],
+        [{ text: '🏟️ میزگرد گروهی [چندنفره]', url: 'https://ble.ir/game_center_bale' }],
+        [{ text: '📋 کارها', callback_data: 'tasks' }, { text: '🛒 فروشگاه', callback_data: 'shop' }],
+        [{ text: '📢 مجله کانال', url: 'https://ble.ir/bale_game_center' }, { text: '🆔 آیدی من', callback_data: 'myid' }]
+      ] };
     }
     function json(obj) {
       return new Response(JSON.stringify(obj), { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' } });
@@ -1199,10 +1226,11 @@ export default {
               } else { await bale('sendMessage', { chat_id: uid, text: '📬 گزارش دریافت شد.' }); }
               return new Response('ok');
             }
-            if (text === '/start') {
+            if (text === '/start' || text === '/menu') {
               if (!(await KV.get('cmds_v1'))) {
                 await bale('setMyCommands', { commands: [
                   { command: 'start', description: '🎮 منوی مرکز بازی' },
+                  { command: 'menu', description: '🧭 نمایش منوی دائمی' },
                   { command: 'nabard', description: '🏟️ ساخت میزگرد واژه‌ها' },
                   { command: 'laghv', description: '🗑️ بستن میز فعال' },
                   { command: 'rahnama', description: '📖 راهنمای میزگرد' },
@@ -1224,20 +1252,26 @@ export default {
               let extra = '';
               if (u.daily.login !== today) { u.daily.login = today; u.coins += 30; await saveUser(uid, u); extra = '\n\n🎁 جایزه ورود امروز: +' + fa(30) + ' سکه'; }
               const fname = (update.message.from && update.message.from.first_name) || 'دوست';
-              await bale('sendMessage', { chat_id: chat.id, text: '🎮 به مرکز بازی بله خوش اومدی، ' + fname + ' عزیز 🌹\n\nاینجا می‌تونی تک‌نفره یا با دوستانت بازی کنی، سکه جمع کنی و قهرمان هفته بشی!\n\n🌼 داوری همهٔ بازی‌ها خودکار و عادله.\n\n🪙 سکه تو: ' + fa(u.coins) + extra + '\n\n🔻 برای شروع از دکمه‌های زیر استفاده کن 🔻', reply_markup: { inline_keyboard: [
-                [{ text: '🎮 نبرد واژه‌ها [دونفره]', url: ESM_URL + '?user=' + uid }],
-                [{ text: '🌼 حساب کاربری', callback_data: 'profile' }, { text: '🐤 پرنده‌پرش', url: GAME_URL + '?user=' + uid }],
-                [{ text: '👤 سایه‌پرش', url: SHADOW_URL + '?user=' + uid }, { text: '🥚 آخرین تخم', url: EGG_URL + '?user=' + uid }],
-                [{ text: '🏆 برترین‌ها | رتبه من', callback_data: 'rank' }, { text: '🚦 راهنما', callback_data: 'guide_menu' }],
-                [{ text: '🏟️ میزگرد گروهی [چندنفره]', url: 'https://ble.ir/game_center_bale' }],
-                [{ text: '📋 کارها', callback_data: 'tasks' }, { text: '🛒 فروشگاه', callback_data: 'shop' }],
-                [{ text: '📢 مجله کانال', url: 'https://ble.ir/bale_game_center' }, { text: '🆔 آیدی من', callback_data: 'myid' }]
-              ] } });
+              await bale('sendMessage', { chat_id: chat.id, text: '🎮 به مرکز بازی بله خوش اومدی، ' + fname + ' عزیز 🌹\n\nاینجا می‌تونی تک‌نفره یا با دوستانت بازی کنی، سکه جمع کنی و قهرمان هفته بشی!\n\n🌼 داوری همهٔ بازی‌ها خودکار و عادله.\n\n🪙 سکه تو: ' + fa(u.coins) + extra + '\n\n🔻 برای شروع از دکمه‌های زیر استفاده کن 🔻', reply_markup: mainInlineMenu(uid) });
+              await bale('sendMessage', { chat_id: chat.id, text: '🧭 منوی دائمی بات فعال شد؛ از دکمه‌های پایین صفحه استفاده کن:', reply_markup: mkReplyMenu() });
             }
             else if (text === '/coins') { await bale('sendMessage', { chat_id: chat.id, text: '🪙 سکه: ' + fa(u.coins) + '\n🎮 بازی‌ها: ' + fa(u.games) + '\n⭐ بهترین رکورد: ' + fa(u.best) }); }
             else if (text === '/tasks') { await sendTasks(chat.id); }
             else if (text === '/shop') { await sendShop(chat.id, u); }
             else if (text === '/rank') { await bale('sendMessage', { chat_id: chat.id, text: await rankText() }); }
+            else if (REPLY_MENU.indexOf(text) !== -1) {
+              await menuStat(KV, text);
+              if (text === '🎮 شروع') {
+                await bale('sendMessage', { chat_id: chat.id, text: '🎮 منوی مرکز بازی\n\n🔻 یکی از گزینه‌ها رو انتخاب کن:', reply_markup: mainInlineMenu(uid) });
+              }
+              else if (text === '🌼 حساب کاربری') { await bale('sendMessage', { chat_id: chat.id, text: '🌼 حساب کاربری تو\n\n🪙 سکه: ' + fa(u.coins) + '\n🎮 بازی‌ها: ' + fa(u.games) + '\n⭐ بهترین رکورد: ' + fa(u.best) + '\n🏅 برد نبرد واژه‌ها: ' + fa((u.esm && u.esm.wins) || 0) + ' از ' + fa((u.esm && u.esm.games) || 0) }); }
+              else if (text === '🛒 فروشگاه') { await sendShop(chat.id, u); }
+              else if (text === '📋 کارها') { await sendTasks(chat.id); }
+              else if (text === '🏆 برترین‌ها | رتبه من') { await bale('sendMessage', { chat_id: chat.id, text: await rankText() }); }
+              else if (text === '🚦 راهنما') { await bale('sendMessage', { chat_id: chat.id, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش، سایه‌پرش، آخرین تخم\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — هر شب ساعت ۲۱:۳۰ خودکار\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE }); }
+              else if (text === '📜 قوانین') { await bale('sendMessage', { chat_id: chat.id, text: MZ_RULES }); }
+              else if (text === '❌ بستن منو') { await bale('sendMessage', { chat_id: chat.id, text: '👋 منو بسته شد؛ برای بازگشت /start بزن.', reply_markup: { remove_keyboard: true } }); }
+            }
           }
         }
         if (update.callback_query) {
@@ -1354,7 +1388,7 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v30 is running!');
+    return new Response('🎮 Bale Game Server v32 is running!');
   },
 
   async scheduled(event, env) {
