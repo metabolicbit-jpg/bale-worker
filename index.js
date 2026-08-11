@@ -963,7 +963,9 @@ export default {
           u.games += 1;
           const newBest = score > u.best;
           if (newBest) u.best = score;
-          let coins = Math.max(5, Math.floor(score / 2));
+          const bonus = Math.max(0, Math.min(200, Number(body.bonus) || 0));
+          let coins = Math.max(5, Math.floor(score / 2)) + bonus;
+          if (newBest && score > 0) coins += 50; let coins = Math.max(5, Math.floor(score / 2));
           if (newBest && score > 0) coins += 50;
           u.coins += coins;
           await saveUser(uid, u);
