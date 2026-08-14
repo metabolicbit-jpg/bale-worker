@@ -1,4 +1,9 @@
-// ========== میزگرد بله (v25: کیبورد Reply دائمی + اینلاین + سقف لایک) ==========
+// ========== گیم‌سنتر بله (v33: فاز ۱+۲+۳+۵) ==========
+// URL Worker: https://aged-river-6500bale-game-server.metabolicbit.workers.dev/
+
+// ============================================================
+// CONFIG
+// ============================================================
 const MZ_COLS = ['اسم','فامیل','حیوان','میوه','شهر','غذا'];
 const MZ_LETTERS = ['ا','ب','پ','ت','ج','د','ر','س','ش','ک','گ','م','ن','و','ه','ی'];
 const MZ_ONLINE_COLS = ['حیوان','میوه','شهر','غذا'];
@@ -18,9 +23,31 @@ const TEST_MODE = false;
 const TESTERS = [];
 const REPLY_MENU = ['🎮 شروع','🌼 حساب کاربری','🛒 فروشگاه','📋 کارها','🏆 برترین‌ها | رتبه من','🚦 راهنما','📜 قوانین','❌ بستن منو'];
 
+// ============================================================
+// CRON SLOTS - فاز ۲: مقاوم با next_run_at
+// ============================================================
+const CRON_TASKS = {
+  inject:       { targetHour: 6,  targetMin: 30,  func: 'engineInject' },
+  ensure_lock:  { targetHour: 6,  targetMin: 35,  func: 'engineEnsureLock' },
+  morning:      { targetHour: 8,  targetMin: 30,  func: 'engineMorning' },
+  tarfand:      { targetHour: 11, targetMin: 0,   func: 'enginePostSection', section: 'tarfand' },
+  nabz:         { targetHour: 14, targetMin: 0,   func: 'enginePostSection', section: 'nabz' },
+  bazi:         { targetHour: 17, targetMin: 0,   func: 'engineBazi' },
+  moma:         { targetHour: 19, targetMin: 30,  func: 'enginePostSection', section: 'moma', riddle: true },
+  evening:      { targetHour: 21, targetMin: 0,   func: 'engineEvening' },
+  nabard_auto:  { targetHour: 21, targetMin: 30,  func: 'engineAutoNabard' },
+  recess_open:  { targetHour: 23, targetMin: 15,  func: 'engineRecess', open: true },
+  recess_close: { targetHour: 23, targetMin: 40,  func: 'engineRecess', open: false },
+  digest:       { targetHour: 23, targetMin: 45,  func: 'engineDigest' }
+};
+
+// ============================================================
+// UI HELPERS
+// ============================================================
 function cbButtons(pid) {
   return { inline_keyboard: [ [{ text: '❤️ پسندیدم (+۳)', callback_data: 'cb_like:' + pid }, { text: '💡 پیشنهاد به مجله (+۵)', callback_data: 'cb_sug' }] ] };
 }
+
 function mkReplyMenu() {
   return { keyboard: [
     [{ text: '🎮 شروع' }],
@@ -30,11 +57,16 @@ function mkReplyMenu() {
     [{ text: '❌ بستن منو' }]
   ], resize_keyboard: true };
 }
+
+// ============================================================
+// UTILITIES
+// ============================================================
 async function menuStat(KV, label) {
   const s = (await KV.get('menu_stat', 'json')) || {};
   s[label] = (s[label] || 0) + 1;
   await KV.put('menu_stat', JSON.stringify(s));
 }
+
 async function isTester(KV, uid) {
   if (TEST_MODE) return true;
   if (TESTERS.indexOf(uid) !== -1) return true;
@@ -42,39 +74,63 @@ async function isTester(KV, uid) {
   const arr = (await KV.get('testers', 'json')) || [];
   return arr.indexOf(uid) !== -1;
 }
+
 function faP(n) { const p = ['۰','۱','۲','۳','۴','۵','۶','۷','۸','۹']; return String(n).replace(/\d/g, function(d) { return p[d]; }); }
 function mzNorm(s) { return (s || '').trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک').replace(/\s+/g, ' '); }
 function mzShort(s) { return (s || 'بازیکن').slice(0, 8); }
 function mzRootHit(col, w) { const rs = MZ_ROOTS[col] || []; for (const r of rs) { if (r && w.indexOf(r) !== -1) return true; } return false; }
 function mzWhen() { try { return new Intl.DateTimeFormat('fa-IR', { weekday: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date()); } catch (e) { return ''; } }
+
 async function mzBale(env, method, data) {
   const res = await fetch('https://tapi.bale.ai/bot' + (env.BALE_BOT_TOKEN || '') + '/' + method, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
   return res.json();
 }
-async function mzGetUser(KV, id) { const raw = await KV.get('u:' + id, 'json'); if (raw) return raw; return { coins: 0, best: 0, games: 0, items: [], claimed: {}, daily: {} }; }
+
+// ============================================================
+// USER MANAGEMENT
+// ============================================================
+async function mzGetUser(KV, id) {
+  const raw = await KV.get('u:' + id, 'json');
+  if (raw) return raw;
+  return { coins: 0, best: 0, games: 0, items: [], claimed: {}, daily: {} };
+}
+
+// ============================================================
+// WORD BANK
+// ============================================================
 async function mzLoadBank(KV) {
   try { const cached = await KV.get('esm_bank', 'json'); if (cached && cached.list) return cached.list; } catch (e) {}
   try { const r = await fetch('https://metabolicbit-jpg.github.io/bale-game/words.json'); return await r.json(); } catch (e) { return {}; }
 }
+
 async function mzLearnedHas(KV, col, w) {
   const l = (await KV.get('learned:' + col, 'json')) || [];
   return l.indexOf(w) !== -1;
 }
+
+// ============================================================
+// MODERATION
+// ============================================================
 async function mzCheckMember(env, uid) {
   try {
     const r = await mzBale(env, 'getChatMember', { chat_id: '@bale_game_center', user_id: Number(uid) });
     return !!(r && r.ok && ['member', 'administrator', 'creator'].includes(r.result.status));
   } catch (e) { return false; }
 }
+
 async function modSetLock(env, gid, lock) {
   try { await mzBale(env, 'setChatPermissions', { chat_id: gid, permissions: { can_send_messages: !lock, can_send_media_messages: !lock, can_send_other_messages: !lock, can_add_web_page_previews: !lock } }); } catch (e) {}
 }
+
 async function modCount(KV, k) {
   const s = (await KV.get('modstat', 'json')) || { del: 0, mute: 0, rep: 0, join: 0 };
   s[k] = (s[k] || 0) + 1;
   await KV.put('modstat', JSON.stringify(s));
 }
 
+// ============================================================
+// CHANNEL POSTS (MAGAZINE)
+// ============================================================
 const CB_URL = 'https://metabolicbit-jpg.github.io/bale-game/content.json';
 const CB_EMERG = [
   '🧠 آیا می‌دانستید؟ مغز شما حتی وقتی می‌خندید هم در حال یادگیریه! 😄',
@@ -101,6 +157,7 @@ async function cbLoadBank(KV) {
   } catch (e) {}
   return bank;
 }
+
 async function cbPost(env, sectionKey, opts) {
   const KV = env.GAME_KV;
   const CHANNEL = '@bale_game_center';
@@ -132,6 +189,7 @@ async function cbPost(env, sectionKey, opts) {
   if (!text) text = CB_EMERG[Math.floor(Math.random() * CB_EMERG.length)];
   try { await mzBale(env, 'sendMessage', { chat_id: CHANNEL, text: text, reply_markup: cbButtons(sectionKey + ':' + new Date().toISOString().slice(0, 10)) }); } catch (e) {}
 }
+
 async function cbAnswer(env) {
   const KV = env.GAME_KV;
   const r = (await KV.get('cb_riddle', 'json')) || null;
@@ -144,6 +202,7 @@ async function cbAnswer(env) {
 function cbClean(s) {
   return (s || '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim();
 }
+
 function cbRssParse(xml, max) {
   const out = [];
   const re = /<item\b[\s\S]*?<\/item>/gi;
@@ -156,6 +215,10 @@ function cbRssParse(xml, max) {
   }
   return out;
 }
+
+// ============================================================
+// ENGINES
+// ============================================================
 async function engineInject(env) {
   const KV = env.GAME_KV;
   const FEEDS = ['https://digiato.com/feed', 'https://www.zoomit.ir/feed'];
@@ -181,6 +244,12 @@ async function engineInject(env) {
   while (queue.length > 10) queue.shift();
   await KV.put('cb_seen', JSON.stringify(seen));
   await KV.put('cb_news', JSON.stringify(queue));
+}
+
+async function engineEnsureLock(env) {
+  const KV = env.GAME_KV;
+  const g = await KV.get('group_main');
+  if (g) { await modSetLock(env, g, true); await KV.put('recess', '0'); }
 }
 
 async function mzOnlineCheck(words) {
@@ -215,6 +284,7 @@ async function mzOnlineCheck(words) {
   }
   return { out: out, cacheable: ok1 && ok2 };
 }
+
 async function mzConsensus(KV, env, col, w, uid) {
   const key = 'wc:' + w;
   const rec = (await KV.get(key, 'json')) || { u: {} };
@@ -239,6 +309,7 @@ async function mzConsensus(KV, env, col, w, uid) {
   await KV.put(key, JSON.stringify(rec));
   return false;
 }
+
 async function mzClose(env, KV, key, chatId) {
   try { await KV.delete(key); } catch (e) {}
   let active = (await KV.get('mz_active', 'json')) || [];
@@ -299,6 +370,7 @@ async function engineAutoNabard(env) {
   await KV.put('mz_active', JSON.stringify(active));
   await mzBale(env, 'sendMessage', { chat_id: gid, text: '📣 میزگرد شبانهٔ واژه‌ها — ' + mzWhen() + '\n\n⏳ شروع مسابقه تا ' + faP(60) + ' ثانیهٔ دیگر\n🪑 همین حالا با دکمهٔ «نشستن پای میز» جات رو رزرو کن!\n\n📝 ' + faP(6) + ' ستون | ⏱ ' + faP(90) + ' ثانیه | ⭐ ستون طلایی با ضریب ۲\n️ جواب‌ها فقط خصوصی به بات', reply_markup: { inline_keyboard: [ [{ text: '🪑 نشستن پای میز', callback_data: 'mz_join' }, { text: '📖 راهنما', callback_data: 'mz_guide' }] ] } });
 }
+
 async function engineRecess(env, open) {
   const KV = env.GAME_KV;
   const gid = await KV.get('group_main');
@@ -307,6 +379,7 @@ async function engineRecess(env, open) {
   await modSetLock(env, gid, !open);
   await mzBale(env, 'sendMessage', { chat_id: gid, text: open ? '🎈 زنگ تفریح باز شد!\n\nبه‌مدت ۲۰ دقیقه گفتگوی آزاد آزاده؛ فقط احترام و قوانین رو رعایت کنید. 🌷' : '🏟️ زنگ تفریح به پایان رسید.\n\nسالن دوباره به حالت مسابقه برگشت؛ منتظر میزگرد شبانه باشید!' });
 }
+
 async function engineDigest(env) {
   const KV = env.GAME_KV;
   const s = (await KV.get('modstat', 'json')) || { del: 0, mute: 0, rep: 0, join: 0 };
@@ -316,6 +389,19 @@ async function engineDigest(env) {
   await KV.put('modstat', JSON.stringify({ del: 0, mute: 0, rep: 0, join: 0 }));
 }
 
+async function enginePostSection(env, sectionKey, opts) {
+  await cbPost(env, sectionKey, opts);
+}
+
+async function engineBazi(env) {
+  const today = new Date();
+  const section = (today.getDate() % 2 === 0) ? 'bazi' : 'ai';
+  await cbPost(env, section);
+}
+
+// ============================================================
+// MZ JUDGE + RESULT
+// ============================================================
 async function mzJudge(env, KV, st) {
   const bank = await mzLoadBank(KV);
   const need = [];
@@ -459,6 +545,86 @@ async function mzStartPlay(env, KV, st, key) {
   for (const p of st.players) {
     await mzBale(env, 'sendMessage', { chat_id: p.id, text: '🏟️ مسابقه شروع شد!\n\n🔤 حرف این دور: ' + st.letter + '\n✍️ ستون ' + faP(1) + ' از ' + faP(6) + ' — ' + MZ_COLS[0] + ':' });
   }
+}
+
+// ============================================================
+// MZ HANDLE - فاز ۳: Refactor به ماژول‌ها
+// ============================================================
+async function handleMzJoin(env, KV, st, uid, name, chatId) {
+  if (st.phase !== 'join' && st.phase !== 'countdown') { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'میز از دست رفت! دور بعد زودتر بیا.' }); return; }
+  if (st.players.length >= 8) return;
+  if (!st.players.find(function(p) { return p.id === uid; })) {
+    st.players.push({ id: uid, name: name, answers: {}, idx: 0, submitted: false, score: 0, timeBonus: 0, cells: [0,0,0,0,0,0] });
+    await KV.put('mzu:' + uid, String(chatId));
+    await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🪑 ' + name + ' پای میز نشست.\n👥 حاضرین تا الان: ' + faP(st.players.length) + ' نفر' });
+    await KV.put('mz:' + chatId, JSON.stringify(st));
+  }
+}
+
+async function handleMzStart(env, KV, st, uid, chatId, ctx) {
+  if (uid !== st.host) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'فقط میزبان می‌تونه نبرد رو شروع کنه!' }); return; }
+  if (st.phase !== 'join') return;
+  if (st.players.length < 2) {
+    const m = 'حداقل ۲ نفر باید پای میز باشن!';
+    await mzBale(env, 'sendMessage', { chat_id: chatId, text: m });
+    await mzBale(env, 'sendMessage', { chat_id: uid, text: m });
+    return;
+  }
+  st.phase = 'countdown';
+  st.startsAt = Date.now() + MZ_COUNTDOWN * 1000;
+  await KV.put('mz:' + chatId, JSON.stringify(st));
+  await mzBale(env, 'sendMessage', { chat_id: chatId, text: '📢 مسابقه تا ' + faP(MZ_COUNTDOWN) + ' ثانیهٔ دیگر شروع می‌شه!\n⏳ آماده باشید...' });
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil((async function() {
+      await new Promise(function(r) { setTimeout(r, MZ_COUNTDOWN * 1000 + 500); });
+      const st2 = await KV.get('mz:' + chatId, 'json');
+      if (st2 && st2.phase === 'countdown') await mzStartPlay(env, KV, st2, 'mz:' + chatId);
+    })());
+  }
+}
+
+async function handleMzBet(env, KV, st, uid, name, data) {
+  if (st.phase !== 'play') return;
+  const idx = Number(data.slice(7));
+  const target = st.players[idx];
+  if (!target) return;
+  if (st.bets.find(function(b) { return b.user === uid; })) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً پیش‌بینی کردی!' }); return; }
+  const u = await mzGetUser(KV, uid);
+  if (u.coins < 20) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'سکه کافی نیست (' + faP(20) + ' لازمه)' }); return; }
+  u.coins -= 20;
+  await KV.put('u:' + uid, JSON.stringify(u));
+  st.bets.push({ user: uid, name: name, on: idx, amount: 20 });
+  await KV.put('mz:' + st.chat, JSON.stringify(st));
+  await mzBale(env, 'sendMessage', { chat_id: uid, text: '🔮 پیش‌بینی ' + faP(20) + ' سکه‌ای روی قهرمانیِ ' + target.name + ' ثبت شد!' });
+}
+
+async function handleMzVote(env, KV, st, uid, data, chatId) {
+  const parts = data.slice(8).split('_');
+  const idx = Number(parts[0]);
+  const side = parts[1];
+  const c = st.court && st.court[idx];
+  if (!c || c.done || st.phase !== 'result') return;
+  if (uid === c.owner) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'روی کلمهٔ خودت نمی‌تونی رأی بدی!' }); return; }
+  if (c.yes.indexOf(uid) !== -1 || c.no.indexOf(uid) !== -1) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً رأی دادی!' }); return; }
+  if (side === 'y') c.yes.push(uid); else c.no.push(uid);
+  if (/^\d+$/.test(uid)) { const u = await mzGetUser(KV, uid); u.coins += 2; await KV.put('u:' + uid, JSON.stringify(u)); }
+  let msg2 = '🗳️ رأی تو ثبت شد (+' + faP(2) + ' سکه)';
+  if (c.yes.length >= 2 && c.yes.length > c.no.length) {
+    c.done = true;
+    const learned = (await KV.get('learned:' + c.col, 'json')) || [];
+    if (learned.indexOf(c.w) === -1) { learned.push(c.w); await KV.put('learned:' + c.col, JSON.stringify(learned)); }
+    const reward = c.g ? 20 : 10;
+    if (/^\d+$/.test(c.owner)) {
+      const ou = await mzGetUser(KV, c.owner);
+      ou.coins += reward;
+      await KV.put('u:' + c.owner, JSON.stringify(ou));
+      try { await mzBale(env, 'sendMessage', { chat_id: c.owner, text: '🏛️ دادگاه میز کلمهٔ «' + c.w + '» رو پذیرفت! +' + faP(reward) + ' سکه بهت برگشت.' }); } catch (e) {}
+    }
+    await mzBale(env, 'sendMessage', { chat_id: chatId, text: '✅ «' + c.w + '» با رأی میز پذیرفته شد و به فرهنگ‌نامه رفت!' });
+    msg2 = '🗳️ رأی تو ثبت شد — کلمه پذیرفته شد! 🎉';
+  }
+  await KV.put('mz:' + st.chat, JSON.stringify(st));
+  await mzBale(env, 'sendMessage', { chat_id: uid, text: msg2 });
 }
 
 async function mzHandle(update, env, ctx) {
@@ -756,26 +922,13 @@ async function mzHandle(update, env, ctx) {
       const uid = String(cb.from.id);
       const name = cb.from.first_name || 'بازیکن';
 
-      if (data === 'mz_join') {
-        if (st.phase !== 'join' && st.phase !== 'countdown') { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'میز از دست رفت! دور بعد زودتر بیا.' }); return true; }
-        if (st.players.length >= 8) return true;
-        if (!st.players.find(function(p) { return p.id === uid; })) {
-          st.players.push({ id: uid, name: name, answers: {}, idx: 0, submitted: false, score: 0, timeBonus: 0, cells: [0,0,0,0,0,0] });
-          await KV.put('mzu:' + uid, String(chatId));
-          await mzBale(env, 'sendMessage', { chat_id: chatId, text: '🪑 ' + name + ' پای میز نشست.\n👥 حاضرین تا الان: ' + faP(st.players.length) + ' نفر' });
-          await KV.put(key, JSON.stringify(st));
-        }
-        return true;
-      }
-
+      if (data === 'mz_join') { await handleMzJoin(env, KV, st, uid, name, chatId); return true; }
       if (data === 'mz_close') {
         if (uid !== st.host) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'فقط میزبان می‌تونه میز رو بببنده!' }); return true; }
         await mzClose(env, KV, key, chatId);
         return true;
       }
-
       if (data === 'mz_guide') { await mzBale(env, 'sendMessage', { chat_id: chatId, text: MZ_GUIDE }); return true; }
-
       if (data === 'mz_invite') {
         let link = '';
         try { const r = await mzBale(env, 'exportChatInviteLink', { chat_id: chatId }); if (r.ok) link = r.result; } catch (e) {}
@@ -783,81 +936,18 @@ async function mzHandle(update, env, ctx) {
         else await mzBale(env, 'sendMessage', { chat_id: uid, text: 'برای دعوت دوستان: از تنظیمات گروه، لینک دعوت رو کپی کن و بفرست.\n(اگه بخوای بات خودش لینک بسازه، باید مدیر گروه باشه)' });
         return true;
       }
-
-      if (data === 'mz_start') {
-        if (uid !== st.host) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'فقط میزبان می‌تونه نبرد رو شروع کنه!' }); return true; }
-        if (st.phase !== 'join') return true;
-        if (st.players.length < 2) {
-          const m = 'حداقل ۲ نفر باید پای میز باشن!';
-          await mzBale(env, 'sendMessage', { chat_id: chatId, text: m });
-          await mzBale(env, 'sendMessage', { chat_id: uid, text: m });
-          return true;
-        }
-        st.phase = 'countdown';
-        st.startsAt = Date.now() + MZ_COUNTDOWN * 1000;
-        await KV.put(key, JSON.stringify(st));
-        await mzBale(env, 'sendMessage', { chat_id: chatId, text: '📢 مسابقه تا ' + faP(MZ_COUNTDOWN) + ' ثانیهٔ دیگر شروع می‌شه!\n⏳ آماده باشید...' });
-        if (ctx && ctx.waitUntil) {
-          ctx.waitUntil((async function() {
-            await new Promise(function(r) { setTimeout(r, MZ_COUNTDOWN * 1000 + 500); });
-            const st2 = await KV.get(key, 'json');
-            if (st2 && st2.phase === 'countdown') await mzStartPlay(env, KV, st2, key);
-          })());
-        }
-        return true;
-      }
-
-      if (data.indexOf('mz_bet_') === 0 && data.indexOf('mz_vote_') !== 0) {
-        if (st.phase !== 'play') return true;
-        const idx = Number(data.slice(7));
-        const target = st.players[idx];
-        if (!target) return true;
-        if (st.bets.find(function(b) { return b.user === uid; })) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً پیش‌بینی کردی!' }); return true; }
-        const u = await mzGetUser(KV, uid);
-        if (u.coins < 20) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'سکه کافی نیست (' + faP(20) + ' لازمه)' }); return true; }
-        u.coins -= 20;
-        await KV.put('u:' + uid, JSON.stringify(u));
-        st.bets.push({ user: uid, name: name, on: idx, amount: 20 });
-        await KV.put(key, JSON.stringify(st));
-        await mzBale(env, 'sendMessage', { chat_id: uid, text: '🔮 پیش‌بینی ' + faP(20) + ' سکه‌ای روی قهرمانیِ ' + target.name + ' ثبت شد!' });
-        return true;
-      }
-
-      if (data.indexOf('mz_vote_') === 0) {
-        const parts = data.slice(8).split('_');
-        const idx = Number(parts[0]);
-        const side = parts[1];
-        const c = st.court && st.court[idx];
-        if (!c || c.done || st.phase !== 'result') return true;
-        if (uid === c.owner) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'روی کلمهٔ خودت نمی‌تونی رأی بدی!' }); return true; }
-        if (c.yes.indexOf(uid) !== -1 || c.no.indexOf(uid) !== -1) { await mzBale(env, 'sendMessage', { chat_id: uid, text: 'قبلاً رأی دادی!' }); return true; }
-        if (side === 'y') c.yes.push(uid); else c.no.push(uid);
-        if (/^\d+$/.test(uid)) { const u = await mzGetUser(KV, uid); u.coins += 2; await KV.put('u:' + uid, JSON.stringify(u)); }
-        let msg2 = '🗳️ رأی تو ثبت شد (+' + faP(2) + ' سکه)';
-        if (c.yes.length >= 2 && c.yes.length > c.no.length) {
-          c.done = true;
-          const learned = (await KV.get('learned:' + c.col, 'json')) || [];
-          if (learned.indexOf(c.w) === -1) { learned.push(c.w); await KV.put('learned:' + c.col, JSON.stringify(learned)); }
-          const reward = c.g ? 20 : 10;
-          if (/^\d+$/.test(c.owner)) {
-            const ou = await mzGetUser(KV, c.owner);
-            ou.coins += reward;
-            await KV.put('u:' + c.owner, JSON.stringify(ou));
-            try { await mzBale(env, 'sendMessage', { chat_id: c.owner, text: '🏛️ دادگاه میز کلمهٔ «' + c.w + '» رو پذیرفت! +' + faP(reward) + ' سکه بهت برگشت.' }); } catch (e) {}
-          }
-          await mzBale(env, 'sendMessage', { chat_id: chatId, text: '✅ «' + c.w + '» با رأی میز پذیرفته شد و به فرهنگ‌نامه رفت!' });
-          msg2 = '🗳️ رأی تو ثبت شد — کلمه پذیرفته شد! 🎉';
-        }
-        await KV.put(key, JSON.stringify(st));
-        await mzBale(env, 'sendMessage', { chat_id: uid, text: msg2 });
-        return true;
-      }
+      if (data === 'mz_start') { await handleMzStart(env, KV, st, uid, chatId, ctx); return true; }
+      if (data.indexOf('mz_bet_') === 0 && data.indexOf('mz_vote_') !== 0) { await handleMzBet(env, KV, st, uid, name, data); return true; }
+      if (data.indexOf('mz_vote_') === 0) { await handleMzVote(env, KV, st, uid, data, chatId); return true; }
       return true;
     }
   }
   return false;
 }
 
+// ============================================================
+// MAIN EXPORT
+// ============================================================
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -867,8 +957,6 @@ export default {
     const CHANNEL = '@bale_game_center';
     const GROUP = '@game_center_bale';
     const GAME_URL = 'https://metabolicbit-jpg.github.io/bale-game/flappy.html';
-    const SHADOW_URL = 'https://metabolicbit-jpg.github.io/bale-game/shadow.html';
-    const EGG_URL = 'https://metabolicbit-jpg.github.io/bale-game/egg.html';
     const ESM_URL = 'https://metabolicbit-jpg.github.io/bale-game/esm.html';
 
     const SHOP = [
@@ -901,7 +989,6 @@ export default {
       return { inline_keyboard: [
         [{ text: '🎮 نبرد واژه‌ها [دونفره]', url: ESM_URL + '?user=' + uid }],
         [{ text: '🌼 حساب کاربری', callback_data: 'profile' }, { text: '🐤 پرنده‌پرش', url: GAME_URL + '?user=' + uid }],
-        [{ text: '👤 سایه‌پرش', url: SHADOW_URL + '?user=' + uid }, { text: '🥚 آخرین تخم', url: EGG_URL + '?user=' + uid }],
         [{ text: '🏆 برترین‌ها | رتبه من', callback_data: 'rank' }, { text: '🚦 راهنما', callback_data: 'guide_menu' }],
         [{ text: '🏟️ میزگرد گروهی [چندنفره]', url: 'https://ble.ir/game_center_bale' }],
         [{ text: '📋 کارها', callback_data: 'tasks' }, { text: '🛒 فروشگاه', callback_data: 'shop' }],
@@ -951,24 +1038,64 @@ export default {
       return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
     }
 
+    // ============================================================
+    // فاز ۱: رفع باگ /api/submit
+    // ============================================================
     if (url.pathname === '/api/submit') {
       if (request.method === 'OPTIONS') return json({ ok: true });
       if (request.method === 'POST') {
         try {
           const body = await request.json();
           const uid = String(body.user || '');
+          const game = String(body.game || 'unknown');
           const score = Math.max(0, Number(body.score) || 0);
-          if (!uid) return json({ ok: false });
+          const bonus = Math.max(0, Math.min(500, Number(body.bonus) || 0));
+          if (!uid) return json({ ok: false, error: 'no user' });
+          
           const u = await getUser(uid);
           u.games += 1;
-          const newBest = score > u.best;
+          
+          // 🎯 محاسبهٔ صحیح سکه‌ها
+          let coins = 0;
+          const prevBest = u.best || 0;
+          const newBest = score > prevBest;
+          
+          // ۱. سکهٔ پایه: هر ۱۰ امتیاز = ۱ سکه (حداکثر ۵۰)
+          coins += Math.min(50, Math.floor(score / 10));
+          
+          // ۲. بونوس رکورد جدید: +۵۰ سکه
           if (newBest && score > 0) coins += 50;
-          const bonus = Math.max(0, Math.min(200, Number(body.bonus) || 0));         
-          u.coins += coins;
+          
+          // ۳. بونوس سکه‌های داخل بازی: هر ۵ سکه = ۱ سکه واقعی (حداکثر ۴۰)
+          coins += Math.min(40, Math.floor(bonus / 5));
+          
+          // ۴. به‌روزرسانی رکورد
+          if (newBest) u.best = score;
+          
+          // ۵. افزودن سکه‌ها
+          u.coins = (Number(u.coins) || 0) + coins;
+          
+          // ۶. آمار مخصوص بازی
+          if (!u.gameStats) u.gameStats = {};
+          if (!u.gameStats[game]) u.gameStats[game] = { plays: 0, best: 0, totalCoins: 0 };
+          u.gameStats[game].plays += 1;
+          if (score > u.gameStats[game].best) u.gameStats[game].best = score;
+          u.gameStats[game].totalCoins += coins;
+          
           await saveUser(uid, u);
           await updateLB(uid, body.name || '🎮 بازیکن', u.best);
-          return json({ ok: true, coins: coins, balance: u.coins });
-        } catch (e) { return json({ ok: false }); }
+          
+          return json({
+            ok: true,
+            coins: coins,
+            balance: u.coins,
+            newBest: newBest,
+            game: game
+          });
+        } catch (e) {
+          console.error('submit error:', e.message);
+          return json({ ok: false, error: e.message });
+        }
       }
     }
 
@@ -1267,7 +1394,7 @@ export default {
               else if (text === '🛒 فروشگاه') { await sendShop(chat.id, u); }
               else if (text === '📋 کارها') { await sendTasks(chat.id); }
               else if (text === '🏆 برترین‌ها | رتبه من') { await bale('sendMessage', { chat_id: chat.id, text: await rankText() }); }
-              else if (text === '🚦 راهنما') { await bale('sendMessage', { chat_id: chat.id, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش، سایه‌پرش، آخرین تخم\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — هر شب ساعت ۲۱:۳۰ خودکار\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE }); }
+              else if (text === '🚦 راهنما') { await bale('sendMessage', { chat_id: chat.id, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — هر شب ساعت ۲۱:۳۰ خودکار\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE }); }
               else if (text === '📜 قوانین') { await bale('sendMessage', { chat_id: chat.id, text: MZ_RULES }); }
               else if (text === '❌ بستن منو') { await bale('sendMessage', { chat_id: chat.id, text: '👋 منو بسته شد؛ برای بازگشت /start بزن.', reply_markup: { remove_keyboard: true } }); }
             }
@@ -1286,7 +1413,7 @@ export default {
           else if (data === 'myid') { msg = '🆔 شناسهٔ عددی تو: ' + faP(uid); }
           else if (data === 'guide_menu') {
             await bale('answerCallbackQuery', { callback_query_id: cb.id });
-            await bale('sendMessage', { chat_id: chatId, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش، سایه‌پرش، آخرین تخم\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — هر شب ساعت ۲۱:۳۰ خودکار\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE });
+            await bale('sendMessage', { chat_id: chatId, text: '🚦 راهنمای مرکز بازی\n\n🎮 تک‌نفره: پرنده‌پرش\n🎮 دونفره: نبرد واژه‌ها\n🏟️ چندنفره: میزگرد گروهی — هر شب ساعت ۲۱:۳۰ خودکار\n🪙 سکه: بازی + لایک پست کانال + پیشنهاد به مجله + کارها\n🏆 قهرمان هفته: بیشترین امتیاز میزگرد\n\n' + MZ_GUIDE });
             return new Response('ok');
           }
           else if (data === 'join_check') {
@@ -1387,53 +1514,60 @@ export default {
       return new Response('ok');
     }
 
-    return new Response('🎮 Bale Game Server v32 is running!');
+    return new Response('🎮 Bale Game Server v33 is running!');
   },
 
+  // ============================================================
+  // فاز ۲: Cron مقاوم با next_run_at
+  // ============================================================
   async scheduled(event, env) {
     const KV = env.GAME_KV;
     try {
-      const d = new Date(Date.now() + 3.5 * 3600 * 1000);
-      const hm = d.getUTCHours() * 60 + d.getUTCMinutes();
-      const date = d.toISOString().slice(0, 10);
-      const SLOTS = [
-        [390, 'inject'],
-        [395, 'ensure_lock'],
-        [510, 'danestani'],
-        [540, 'morning'],
-        [660, 'tarfand'],
-        [840, 'nabz'],
-        [1020, 'bazi'],
-        [1170, 'moma'],
-        [1260, 'evening'],
-        [1290, 'nabard_auto'],
-        [1355, 'recess_open'],
-        [1380, 'recess_close'],
-        [1385, 'digest']
-      ];
-      for (const s of SLOTS) {
-        if (hm >= s[0] && hm < s[0] + 10) {
-          const key = 'slot:' + date + ':' + s[1];
-          if (!(await KV.get(key))) {
-            await KV.put(key, '1', { expirationTtl: 86400 });
+      const now = new Date(Date.now() + 3.5 * 3600 * 1000);
+      const currentMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+      
+      for (const [taskName, taskConfig] of Object.entries(CRON_TASKS)) {
+        const key = 'cron_next:' + taskName;
+        const nextRun = parseInt(await KV.get(key) || '0');
+        
+        // اگه زمان اجرا گذشته یا اولین باره
+        if (nextRun === 0 || Date.now() >= nextRun) {
+          const targetMinutes = taskConfig.targetHour * 60 + taskConfig.targetMin;
+          const targetTimeToday = new Date(now);
+          targetTimeToday.setUTCHours(taskConfig.targetHour, taskConfig.targetMin, 0, 0);
+          
+          // اگه امروز گذشته، فردا اجرا کن
+          if (currentMinutes > targetMinutes) {
+            targetTimeToday.setUTCDate(targetTimeToday.getUTCDate() + 1);
+          }
+          
+          // تبدیل به UTC
+          const utcTime = new Date(targetTimeToday.getTime() - 3.5 * 3600 * 1000);
+          
+          // اگه الان وقتشه (توی بازه ۱۰ دقیقه‌ای)
+          if (Math.abs(currentMinutes - targetMinutes) < 10) {
             try {
-              if (s[1] === 'inject') await engineInject(env);
-              else if (s[1] === 'ensure_lock') { const g = await KV.get('group_main'); if (g) { await modSetLock(env, g, true); await KV.put('recess', '0'); } }
-              else if (s[1] === 'morning') await engineMorning(env);
-              else if (s[1] === 'evening') await engineEvening(env);
-              else if (s[1] === 'nabard_auto') await engineAutoNabard(env);
-              else if (s[1] === 'recess_open') await engineRecess(env, true);
-              else if (s[1] === 'recess_close') await engineRecess(env, false);
-              else if (s[1] === 'digest') await engineDigest(env);
-              else if (s[1] === 'moma') await cbPost(env, 'moma', { riddle: true });
-              else if (s[1] === 'answer') await cbAnswer(env);
-              else if (s[1] === 'bazi') await cbPost(env, (new Date().getDate() % 2 === 0) ? 'bazi' : 'ai');
-              else await cbPost(env, s[1]);
-            } catch (e) {}
+              if (taskConfig.func === 'engineInject') await engineInject(env);
+              else if (taskConfig.func === 'engineEnsureLock') await engineEnsureLock(env);
+              else if (taskConfig.func === 'engineMorning') await engineMorning(env);
+              else if (taskConfig.func === 'engineEvening') await engineEvening(env);
+              else if (taskConfig.func === 'engineAutoNabard') await engineAutoNabard(env);
+              else if (taskConfig.func === 'engineRecess') await engineRecess(env, taskConfig.open);
+              else if (taskConfig.func === 'engineDigest') await engineDigest(env);
+              else if (taskConfig.func === 'engineBazi') await engineBazi(env);
+              else if (taskConfig.func === 'enginePostSection') await enginePostSection(env, taskConfig.section, { riddle: taskConfig.riddle });
+              
+              // زمان بعدی رو ست کن (فردا)
+              await KV.put(key, String(utcTime.getTime() + 24 * 3600 * 1000), { expirationTtl: 86400 * 2 });
+            } catch (e) {
+              console.log('engine error', taskName, e && e.message);
+            }
           }
         }
       }
-    } catch (e) { console.log('engine error', e && e.message); }
+    } catch (e) { console.log('cron error', e && e.message); }
+    
+    // MZ active tables cleanup
     const active = (await KV.get('mz_active', 'json')) || [];
     const remaining = [];
     for (const chatId of active) {
