@@ -29,8 +29,8 @@ const CRON_TASKS = {
   nabz:         { h: 14, m: 0,  fn: 'section', s: 'nabz' },
   bazi:         { h: 17, m: 0,  fn: 'bazi' },
   moma:         { h: 19, m: 30, fn: 'section', s: 'moma', riddle: true },
-  evening:      { h: 21, m: 0,  fn: 'evening' },
-  nabard_auto:  { h: 21, m: 30, fn: 'nabard' },
+  answer:       { h: 22, m: 30, fn: 'answer' },   // 🆕 ارسال جواب معما
+ nabard_auto:  { h: 21, m: 30, fn: 'nabard' },
   recess_open:  { h: 22, m: 45, fn: 'recess', open: true },
   recess_close: { h: 23, m: 10, fn: 'recess', open: false },
   digest:       { h: 23, m: 45, fn: 'digest' }
@@ -1181,6 +1181,7 @@ export default {
           else if (t.fn === 'digest') await engineDigest(env);
           else if (t.fn === 'bazi') { const d = new Date(); await cbPost(env, (d.getDate() % 2 === 0) ? 'bazi' : 'ai'); }
           else if (t.fn === 'section') await cbPost(env, t.s, { riddle: t.riddle });
+      else if (t.fn === 'answer') await cbAnswer(env);   // 🆕
         } catch (e) { console.log('engine error', name, e && e.message); }
       }
     }
