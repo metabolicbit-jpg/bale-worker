@@ -2,9 +2,25 @@ name = "aged-river-6500bale-game-server"
 main = "index.js"
 compatibility_date = "2026-08-06"
 
+# ⏰ هر دقیقه (برای میزگرد و زمان‌بندی دقیق مجله)
 [triggers]
-crons = ["*/10 * * * *"]
+crons = ["* * * * *"]
 
 [[kv_namespaces]]
 binding = "GAME_KV"
 id = "dda2ea7adc0741fca7d385adbf173990"
+
+# 📊 همون تنظیماتی که داشبورد می‌خواد
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = true
+persist = true
+head_sampling_rate = 1
